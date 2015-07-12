@@ -47,6 +47,8 @@ public class UDP {
 
         public static final class RunnableRecv implements Runnable {
 
+            public static boolean   run         =   true;
+
             private final Listener  listener;
             private final byte[]    toRecv;
 
@@ -64,8 +66,11 @@ public class UDP {
                 try {
                     System.out.println("Creating server");
                     r = UDP.createServer();
-                    UDP.recvData(r,toRecv);
-                    listener.onMessage(toRecv);
+                    while (run) {
+                        UDP.recvData(r,toRecv);
+                        listener.onMessage(toRecv);
+                        Thread.yield();
+                    }
                 } catch (SocketException e) {
                     e.printStackTrace();
                 } catch (IOException e) {

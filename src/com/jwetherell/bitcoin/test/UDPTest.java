@@ -20,6 +20,7 @@ public class UDPTest {
         @Override
         public void onMessage(byte[] data) {
             System.out.println("Listener received '"+new String(data)+"'");
+            UDP.Peer.RunnableRecv.run = false;
         }
     };
 
