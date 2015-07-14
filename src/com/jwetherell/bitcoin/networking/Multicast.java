@@ -25,7 +25,7 @@ public class Multicast {
 
     public static MulticastSocket createReceiver() throws IOException {
         // Create the socket and bind it to port 'port'.
-        MulticastSocket s = new MulticastSocket(PORT);
+        final MulticastSocket s = new MulticastSocket(PORT);
         // join the multicast group
         s.joinGroup(InetAddress.getByName(GROUP));
         // Now the socket is set up and we are ready to receive packets
@@ -44,7 +44,7 @@ public class Multicast {
     public static boolean recvData(MulticastSocket s, byte[] buffer) throws IOException {
         s.setSoTimeout(100);
         // Create a DatagramPacket and do a receive
-        DatagramPacket pack = new DatagramPacket(buffer, buffer.length);
+        final DatagramPacket pack = new DatagramPacket(buffer, buffer.length);
         try {
             s.receive(pack);
         } catch (SocketTimeoutException e) {
@@ -56,7 +56,7 @@ public class Multicast {
 
     public static MulticastSocket createSender() throws IOException {
         // Create the socket but we don't bind it as we are only going to send data
-        MulticastSocket s = new MulticastSocket();
+        final MulticastSocket s = new MulticastSocket();
         // Note that we don't have to join the multicast group if we are only
         // sending data and not receiving
         return s;
@@ -69,9 +69,9 @@ public class Multicast {
 
     public static void sendData(MulticastSocket s, int ourTTL, byte[] buffer) throws IOException {
         // Create a DatagramPacket 
-        DatagramPacket pack = new DatagramPacket(buffer, buffer.length, InetAddress.getByName(GROUP), PORT);
+        final DatagramPacket pack = new DatagramPacket(buffer, buffer.length, InetAddress.getByName(GROUP), PORT);
         // Get the current TTL, set our TTL, do a send, reset the TTL  
-        int ttl = s.getTimeToLive(); 
+        final int ttl = s.getTimeToLive(); 
         s.setTimeToLive(ourTTL); 
         s.send(pack); 
         s.setTimeToLive(ttl);

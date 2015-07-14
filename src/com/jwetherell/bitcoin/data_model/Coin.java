@@ -16,6 +16,13 @@ public class Coin {
 
     public Coin() { }
 
+    public Coin(Coin c) {
+        this.from = c.from;
+        this.to = c.to;
+        this.msg = c.msg;
+        this.value = c.value;
+    }
+
     public Coin(String from, String to, String msg, int value) {
         if (value<=0)
             throw new RuntimeException("Cannot have a zero or negative value coin");

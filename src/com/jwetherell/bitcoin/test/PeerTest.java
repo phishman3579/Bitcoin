@@ -185,7 +185,7 @@ public class PeerTest {
         Assert.assertTrue(toRecv == w2.getBalance());
     }
 
-    @Test(timeout=1000)
+    @Test//(timeout=1000)
     public void testPeers() throws InterruptedException {
         String n1 = "n1";
         Peer p1 = new Peer(n1);
@@ -209,17 +209,23 @@ public class PeerTest {
         // p1=7, p2=23, p3=15
         p2.sendCoin(n3, 7);
         // p1=7, p2=16, p3=22
+        p3.sendCoin(n1, 11);
+        // p1=18, p2=16, p3=11
 
-        while (p1.getWallet().getBalance()!=7 || p2.getWallet().getBalance()!=16 || p3.getWallet().getBalance()!=22) {
-            Thread.yield();
+        while (p1.getWallet().getBalance()!=18 || p2.getWallet().getBalance()!=16 || p3.getWallet().getBalance()!=11) {
+            Thread.sleep(1);
         }
 
         p1.shutdown();
         p2.shutdown();
         p3.shutdown();
 
-        Assert.assertTrue(p1.getWallet().getBalance()==7);
+        Assert.assertTrue(p1.getWallet().getPending()==0);
+        Assert.assertTrue(p2.getWallet().getPending()==0);
+        Assert.assertTrue(p3.getWallet().getPending()==0);
+
+        Assert.assertTrue(p1.getWallet().getBalance()==18);
         Assert.assertTrue(p2.getWallet().getBalance()==16);
-        Assert.assertTrue(p3.getWallet().getBalance()==22);
+        Assert.assertTrue(p3.getWallet().getBalance()==11);
     }
 }
