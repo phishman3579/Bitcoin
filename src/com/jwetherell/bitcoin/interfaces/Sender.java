@@ -1,4 +1,4 @@
-package com.jwetherell.bitcoin;
+package com.jwetherell.bitcoin.interfaces;
 
 import java.util.Queue;
 

@@ -5,9 +5,9 @@ import java.util.Queue;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.jwetherell.bitcoin.Listener;
-import com.jwetherell.bitcoin.Receiver;
 import com.jwetherell.bitcoin.data_model.Data;
+import com.jwetherell.bitcoin.interfaces.Listener;
+import com.jwetherell.bitcoin.interfaces.Receiver;
 import com.jwetherell.bitcoin.networking.UDP;
 
 public class UDPTest {
@@ -42,7 +42,7 @@ public class UDPTest {
         r.start();     
 
         final UDP.Peer.RunnableSend send = new UDP.Peer.RunnableSend();
-        final Data data = new Data(recv.getHost(), recv.getPort(), toSend);
+        final Data data = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), toSend);
         send.getQueue().add(data);
         final Thread s = new Thread(send);
         s.start();
@@ -79,7 +79,7 @@ public class UDPTest {
             } else if (toStart.equals(SENDER)) {
                 final UDP.Peer.RunnableSend send = new UDP.Peer.RunnableSend();
                 Queue<Data> q = send.getQueue();
-                final Data data = new Data(UDP.LOCAL, UDP.port, toSend);
+                final Data data = new Data(UDP.LOCAL, UDP.port, UDP.LOCAL, UDP.port, toSend);
                 q.add(data);
                 final Thread s = new Thread(send);
                 s.start();

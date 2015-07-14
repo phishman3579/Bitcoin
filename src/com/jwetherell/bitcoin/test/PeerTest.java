@@ -1,26 +1,63 @@
 package com.jwetherell.bitcoin.test;
 
+import java.nio.ByteBuffer;
 import java.util.Queue;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.jwetherell.bitcoin.Listener;
-import com.jwetherell.bitcoin.Receiver;
+import com.jwetherell.bitcoin.Peer;
 import com.jwetherell.bitcoin.data_model.Coin;
 import com.jwetherell.bitcoin.data_model.Data;
-import com.jwetherell.bitcoin.data_model.Peer;
 import com.jwetherell.bitcoin.data_model.Wallet;
+import com.jwetherell.bitcoin.interfaces.Listener;
+import com.jwetherell.bitcoin.interfaces.Receiver;
 import com.jwetherell.bitcoin.networking.UDP;
 
 public class PeerTest {
 
-    // Simply exchange one coin from one peer to another using UDP
     @Test
+    public void testHello() {
+        final String hello = "hello";
+        final byte[] p1 = Peer.getIamMsg(hello);
+        final String result = Peer.parseIamMsg(p1);
+
+        Assert.assertTrue(hello.equals(result));
+    }
+
+    @Test
+    public void testWhois() {
+        final String hello = "hello";
+        final byte[] p1 = Peer.getWhoisMsg(hello);
+        final String result = Peer.parseWhoisMsg(p1);
+
+        Assert.assertTrue(hello.equals(result));
+    }
+
+    @Test
+    public void testCoin() {
+        final Coin c1 = new Coin("me","you","I give you 1 coin", 1);
+        byte[] b = Peer.getCoinMsg(c1);
+        final Coin c2 = Peer.parseCoinMsg(b);
+
+        Assert.assertTrue(c1.equals(c2));
+    }
+
+    @Test
+    public void testCoinAck() {
+        final Coin c1 = new Coin("me","you","I give you 1 coin", 1);
+        byte[] b = Peer.getCoinAck(c1);
+        final Coin c2 = Peer.parseCoinAck(b);
+
+        Assert.assertTrue(c1.equals(c2));
+    }
+
+    // Simply exchange one coin from one peer to another using UDP
+    @Test(timeout=10)
     public void coinExchange() throws InterruptedException {
 
         // Serialize the coin into bytes
-        final Coin c1 = new Coin("I give you 1 coin", 1);
+        final Coin c1 = new Coin("me","you","I give you 1 coin", 1);
 
         final Listener listener = new Listener() {
             /**
@@ -32,11 +69,10 @@ public class PeerTest {
                 while (d != null) {
                     final byte[] data = d.data.array();
                     System.out.println("Listener received '"+new String(data)+"'");
-                    final Coin c2 = new Coin();
-                    c2.fromBytes(data);
 
-                    Assert.assertTrue(c1.data.equals(c2.data));
-                    Assert.assertTrue(c1.value == c2.value);
+                    final Coin c2 = new Coin();
+                    c2.fromBuffer(d.data);
+
                     Assert.assertTrue(c1.equals(c2));
 
                     d = recv.getQueue().poll();
@@ -56,7 +92,9 @@ public class PeerTest {
         // Send the coins
         UDP.Peer.RunnableSend send = new UDP.Peer.RunnableSend();
         // Send
-        Data data = new Data(recv.getHost(), recv.getPort(), c1.toBytes());
+        ByteBuffer b = ByteBuffer.allocate(c1.getBufferLength());
+        c1.toBuffer(b);
+        Data data = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), b.array());
         Queue<Data> q = send.getQueue();
         q.add(data);
 
@@ -70,12 +108,12 @@ public class PeerTest {
     }
 
     // Exchange two coins from one peer to another using UDP and test wallet
-    @Test
+    @Test(timeout=10)
     public void coin2Exchange() throws InterruptedException {
 
         // Coins
-        final Coin c1 = new Coin("I give you 1 coin", 1);
-        final Coin c2 = new Coin("I give you 2 coins", 2);
+        final Coin c1 = new Coin("me","you","I give you 1 coin", 1);
+        final Coin c2 = new Coin("me","you","I give you 2 coins", 2);
 
         // Add coins to waller
         final Wallet w1 = new Wallet("w1");
@@ -95,8 +133,9 @@ public class PeerTest {
                 while (d != null) {
                     final byte[] data = d.data.array();
                     System.out.println("Listener received '"+new String(data)+"'");
+
                     final Coin c3 = new Coin();
-                    c3.fromBytes(data);
+                    c3.fromBuffer(d.data);
 
                     // Put a coin
                     w2.addCoin(c3);
@@ -121,14 +160,18 @@ public class PeerTest {
         UDP.Peer.RunnableSend send = new UDP.Peer.RunnableSend();
 
         // Send 2
-        Coin t1 = w1.removeCoin(2);
-        Data data1 = new Data(recv.getHost(), recv.getPort(), t1.toBytes());
+        Coin t1 = w1.removeCoin("none",2);
+        ByteBuffer b1 = ByteBuffer.allocate(t1.getBufferLength());
+        t1.toBuffer(b1);
+        Data data1 = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), b1.array());
         Queue<Data> q = send.getQueue();
         q.add(data1);
 
         // Send 1
-        Coin t2 = w1.removeCoin(1);
-        Data data2 = new Data(recv.getHost(), recv.getPort(), t2.toBytes());
+        Coin t2 = w1.removeCoin("none",1);
+        ByteBuffer b2 = ByteBuffer.allocate(t2.getBufferLength());
+        t2.toBuffer(b2);
+        Data data2 = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), b2.array());
         q.add(data2);
 
         // Start the sender
@@ -142,48 +185,41 @@ public class PeerTest {
         Assert.assertTrue(toRecv == w2.getBalance());
     }
 
-    @Test
+    @Test(timeout=1000)
     public void testPeers() throws InterruptedException {
         String n1 = "n1";
         Peer p1 = new Peer(n1);
-        p1.getWallet().addCoin(new Coin("Coinage.",10));
+        p1.getWallet().addCoin(new Coin("me","you","Coinage.",10));
 
         Thread.yield();
 
         String n2 = "n2";
         Peer p2 = new Peer(n2);
-        p2.getWallet().addCoin(new Coin("Coinage.",20));
+        p2.getWallet().addCoin(new Coin("me","you","Coinage.",20));
 
         Thread.yield();
 
         String n3 = "n3";
         Peer p3 = new Peer(n3);
-        p3.getWallet().addCoin(new Coin("Coinage.",15));
+        p3.getWallet().addCoin(new Coin("me","you","Coinage.",15));
 
-        Thread.sleep(250);
+        Thread.yield();
 
-        boolean sent = p1.sendCoin(n2, 3);
-        while (!sent) {
-            // Wait and try again
-            Thread.sleep(250);
+        p1.sendCoin(n2, 3);
+        // p1=7, p2=23, p3=15
+        p2.sendCoin(n3, 7);
+        // p1=7, p2=16, p3=22
+
+        while (p1.getWallet().getBalance()!=7 || p2.getWallet().getBalance()!=16 || p3.getWallet().getBalance()!=22) {
             Thread.yield();
-            sent = p1.sendCoin(n2, 3);
-        }
-
-        sent = p3.sendCoin(n2, 7);
-        while (!sent) {
-            // Wait and try again
-            Thread.sleep(250);
-            Thread.yield();
-            sent = p3.sendCoin(n2, 7);
-        }
-
-        while (p2.getWallet().getBalance()!=30) {
-            Thread.sleep(1000);
         }
 
         p1.shutdown();
         p2.shutdown();
         p3.shutdown();
+
+        Assert.assertTrue(p1.getWallet().getBalance()==7);
+        Assert.assertTrue(p2.getWallet().getBalance()==16);
+        Assert.assertTrue(p3.getWallet().getBalance()==22);
     }
 }

@@ -11,12 +11,14 @@ import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import com.jwetherell.bitcoin.Listener;
-import com.jwetherell.bitcoin.Receiver;
-import com.jwetherell.bitcoin.Sender;
 import com.jwetherell.bitcoin.data_model.Data;
+import com.jwetherell.bitcoin.interfaces.Listener;
+import com.jwetherell.bitcoin.interfaces.Receiver;
+import com.jwetherell.bitcoin.interfaces.Sender;
 
 public class Multicast {
+
+    private static final boolean    DEBUG       = Boolean.getBoolean("debug");
 
     public static final int         PORT        = 5000;
     public static final String      GROUP       = "225.4.5.6";
@@ -36,17 +38,20 @@ public class Multicast {
         s.close();
     }
 
-    public static DatagramPacket recvData(MulticastSocket s, byte[] buffer) throws IOException {
+    /**
+     * Blocking call
+     */
+    public static boolean recvData(MulticastSocket s, byte[] buffer) throws IOException {
         s.setSoTimeout(100);
         // Create a DatagramPacket and do a receive
         DatagramPacket pack = new DatagramPacket(buffer, buffer.length);
         try {
             s.receive(pack);
         } catch (SocketTimeoutException e) {
-            return null;
+            return false;
         }
         // We have finished receiving data
-        return pack;
+        return true;
     }
 
     public static MulticastSocket createSender() throws IOException {
@@ -107,12 +112,13 @@ public class Multicast {
             public void run() {
                 MulticastSocket s = null;
                 try {
-                    System.out.println("Creating receiver");
+                    if (DEBUG)
+                        System.out.println("Creating receiver");
                     s = Multicast.createReceiver();
                     while (run) {
                         final ByteBuffer b = ByteBuffer.allocate(BUFFER_SIZE);
-                        DatagramPacket p = Multicast.recvData(s, b.array());
-                        if (p == null) {
+                        final boolean p = Multicast.recvData(s, b.array());
+                        if (!p) {
                             Thread.yield();
                             continue;
                         }
@@ -120,7 +126,8 @@ public class Multicast {
                         final Data data = new Data();
                         data.fromBuffer(b);
 
-                        System.out.println("Server received '"+new String(data.data.array())+"' from "+data.addr.getHostAddress()+":"+data.port);
+                        if (DEBUG)
+                            System.out.println("Server received '"+new String(data.data.array())+"' from "+data.sourceAddr.getHostAddress()+":"+data.sourcePort);
 
                         toRecv.add(data);
                         listener.onMessage(this);
@@ -166,10 +173,11 @@ public class Multicast {
             public void run() {
                 MulticastSocket s = null;
                 try {
-                    System.out.println("Creating sender");
+                    if (DEBUG)
+                        System.out.println("Creating sender");
                     s = Multicast.createSender();
                     while (run) {
-                        if (toSend.size()>1)
+                        if (DEBUG && toSend.size()>1)
                             System.out.println("Client toSend size="+toSend.size());
                         final Data d = toSend.poll();
                         if (d != null) {
@@ -177,7 +185,8 @@ public class Multicast {
                             final ByteBuffer bytes = ByteBuffer.wrap(buffer);
                             d.toBuffer(bytes);
 
-                            System.out.println("Client ("+d.addr.getHostAddress()+":"+d.port+") sending '"+new String(d.data.array())+"'");
+                            if (DEBUG)
+                                System.out.println("Client ("+d.sourceAddr.getHostAddress()+":"+d.sourcePort+") sending '"+new String(d.data.array())+"'");
 
                             Multicast.sendData(s, ttl, buffer);
                         }

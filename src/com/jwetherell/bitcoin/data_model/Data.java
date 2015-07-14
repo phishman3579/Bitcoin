@@ -3,86 +3,146 @@ package com.jwetherell.bitcoin.data_model;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public class Data {
 
-    private static final int    lengthLength    = 4;
+    private static final int    LENGTH_LENGTH    = 4;
 
-    private final ByteBuffer    lengthBytes     = ByteBuffer.allocate(lengthLength);
-
-    public InetAddress          addr;
-    public int                  port;
+    public InetAddress          sourceAddr;
+    public int                  sourcePort;
+    public InetAddress          destAddr;
+    public int                  destPort;
     public ByteBuffer           data;
 
     public Data() { }
 
-    public Data(String host, int port, byte[] bytes) {
+    public Data(String sourceAddr, int sourcePort, String destAddr, int destPort, byte[] bytes) {
         try {
-            this.addr = InetAddress.getByName(host);
+            this.sourceAddr = InetAddress.getByName(sourceAddr);
+            this.destAddr = InetAddress.getByName(destAddr);
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);
         }
-        this.port = port;
+        this.sourcePort = sourcePort;
+        this.destPort = destPort;
         this.data = ByteBuffer.allocate(bytes.length);
         this.data.put(bytes);
-    }
-
-    public void toBuffer(ByteBuffer b) {
-        final byte[] buffer = b.array();
-
-        final byte[] hBytes = addr.getHostAddress().getBytes();
-        final int hLength = hBytes.length;
-        lengthBytes.clear();
-        lengthBytes.putInt(hLength);
-        int pos = 0;
-        System.arraycopy(lengthBytes.array(), 0, buffer, pos, lengthLength);
-        pos += lengthLength;
-        System.arraycopy(hBytes, 0, buffer, pos, hLength);
-        pos += hLength;
-
-        final String sPort = String.valueOf(port);
-        final byte[] pBytes = sPort.getBytes();
-        final int pLength = pBytes.length;
-        lengthBytes.clear();
-        lengthBytes.putInt(pLength);
-        System.arraycopy(lengthBytes.array(), 0, buffer, pos, lengthLength);
-        pos += lengthLength;
-        System.arraycopy(pBytes, 0, buffer, pos, pLength);
-        pos += pLength;
-
         data.flip();
-        data.get(buffer, pos, data.limit());
     }
 
-    public void fromBuffer(ByteBuffer b) {
-        final int hLength = b.getInt();
-        final byte[] hostBytes = new byte[hLength];
-        b.get(hostBytes);
-        String sHost = new String(hostBytes);
-        try {
-            this.addr = InetAddress.getByName(sHost);
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
+    public int getBufferLength() {
+        return  LENGTH_LENGTH + sourceAddr.getHostAddress().getBytes().length + 
+                LENGTH_LENGTH + String.valueOf(sourcePort).getBytes().length + 
+                LENGTH_LENGTH + destAddr.getHostAddress().getBytes().length + 
+                LENGTH_LENGTH + String.valueOf(destPort).getBytes().length + 
+                data.limit();
+    }
+
+    public void toBuffer(ByteBuffer buffer) {
+        { // Source
+            final byte[] hBytes = sourceAddr.getHostAddress().getBytes();
+            final int hLength = hBytes.length;
+            buffer.putInt(hLength);
+            buffer.put(hBytes);
+    
+            final byte[] pBytes = String.valueOf(sourcePort).getBytes();
+            final int pLength = pBytes.length;
+            buffer.putInt(pLength);
+            buffer.put(pBytes);
         }
 
-        final int pLength = b.getInt();
-        final byte[] portBytes = new byte[pLength];
-        b.get(portBytes);
-        String sPort = new String(portBytes);
-        this.port = Integer.parseInt(sPort);
+        { // Destination
+            final byte[] hBytes = destAddr.getHostAddress().getBytes();
+            final int hLength = hBytes.length;
+            buffer.putInt(hLength);
+            buffer.put(hBytes);
+    
+            final byte[] pBytes = String.valueOf(destPort).getBytes();
+            final int pLength = pBytes.length;
+            buffer.putInt(pLength);
+            buffer.put(pBytes);
+        }
 
-        int bLength = b.remaining();
-        byte[] bytes = new byte[bLength];
-        b.get(bytes, 0, bLength);
+        buffer.put(data);
+
+        buffer.flip();
+    }
+
+    public void fromBuffer(ByteBuffer buffer) {
+        { // Source
+            final int hLength = buffer.getInt();
+            final byte[] hostBytes = new byte[hLength];
+            buffer.get(hostBytes);
+            final String sHost = new String(hostBytes);
+            try {
+                this.sourceAddr = InetAddress.getByName(sHost);
+            } catch (UnknownHostException e) {
+                throw new RuntimeException(e);
+            }
+    
+            final int pLength = buffer.getInt();
+            final byte[] portBytes = new byte[pLength];
+            buffer.get(portBytes);
+            final String sPort = new String(portBytes);
+            this.sourcePort = Integer.parseInt(sPort);
+        }
+
+        { // Destination
+            final int hLength = buffer.getInt();
+            final byte[] hostBytes = new byte[hLength];
+            buffer.get(hostBytes);
+            final String sHost = new String(hostBytes);
+            try {
+                this.destAddr = InetAddress.getByName(sHost);
+            } catch (UnknownHostException e) {
+                throw new RuntimeException(e);
+            }
+    
+            final int pLength = buffer.getInt();
+            final byte[] portBytes = new byte[pLength];
+            buffer.get(portBytes);
+            final String sPort = new String(portBytes);
+            this.destPort = Integer.parseInt(sPort);
+        }
+
+        final int bLength = buffer.remaining();
+        final byte[] bytes = new byte[bLength];
+        buffer.get(bytes, 0, bLength);
         this.data = ByteBuffer.allocate(bytes.length);
         this.data.put(bytes);
         this.data.flip();
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof Data))
+            return false;
+        Data d = (Data) o;
+        if (!(sourceAddr.equals(d.sourceAddr)))
+            return false;
+        if (sourcePort != d.sourcePort)
+            return false;
+        if (!(destAddr.equals(d.destAddr)))
+            return false;
+        if (destPort != d.destPort)
+            return false;
+        if (!(Arrays.equals(this.data.array(), d.data.array())))
+            return false;
+        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("addr=").append(addr.getHostAddress()).append(":").append(port).append("\n");
+        builder.append("source=").append(sourceAddr.getHostAddress()).append(":").append(sourcePort).append("\n");
+        builder.append("destination=").append(destAddr.getHostAddress()).append(":").append(destPort).append("\n");
         builder.append("data=").append(new String(data.asCharBuffer().array()));
         return builder.toString();
     }

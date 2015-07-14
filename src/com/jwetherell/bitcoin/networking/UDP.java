@@ -10,16 +10,18 @@ import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import com.jwetherell.bitcoin.Listener;
-import com.jwetherell.bitcoin.Receiver;
-import com.jwetherell.bitcoin.Sender;
 import com.jwetherell.bitcoin.data_model.Data;
+import com.jwetherell.bitcoin.interfaces.Listener;
+import com.jwetherell.bitcoin.interfaces.Receiver;
+import com.jwetherell.bitcoin.interfaces.Sender;
 
 public class UDP {
 
-    public static final String      LOCAL   = "127.0.0.1";
+    private static final boolean    DEBUG       = Boolean.getBoolean("debug");
 
-    public static int               port    = 1111;
+    public static final String      LOCAL       = "127.0.0.1";
+
+    public static int               port        = 1111;
 
     public static DatagramSocket createServer(int port) throws SocketException {
         DatagramSocket serverSocket = new DatagramSocket(port);
@@ -44,15 +46,18 @@ public class UDP {
         socket.send(sendPacket);
     }
 
-    public static DatagramPacket recvData(DatagramSocket socket, byte[] buffer) throws IOException {
+    /**
+     * Blocking call
+     */
+    public static boolean recvData(DatagramSocket socket, byte[] buffer) throws IOException {
         socket.setSoTimeout(100);
         DatagramPacket receivePacket = new DatagramPacket(buffer, buffer.length);
         try {
             socket.receive(receivePacket);
         } catch (SocketTimeoutException e) {
-            return null;
+            return false;
         }
-        return receivePacket;
+        return true;
     }
 
     public static final class Peer { 
@@ -94,12 +99,13 @@ public class UDP {
             public void run() {
                 DatagramSocket s = null;
                 try {
-                    System.out.println("Creating server. port="+port);
+                    if (DEBUG) 
+                        System.out.println("Creating server. port="+port);
                     s = UDP.createServer(port);
                     while (run) {
                         final ByteBuffer b = ByteBuffer.allocate(BUFFER_SIZE);
-                        DatagramPacket p = UDP.recvData(s,b.array());
-                        if (p == null) {
+                        final boolean p = UDP.recvData(s,b.array());
+                        if (!p) {
                             Thread.yield();
                             continue;
                         }
@@ -107,7 +113,8 @@ public class UDP {
                         final Data data = new Data();
                         data.fromBuffer(b);
 
-                        System.out.println("Server ("+getHost()+":"+getPort()+") received '"+new String(data.data.array())+"' from "+data.addr.getHostAddress()+":"+data.port);
+                        if (DEBUG) 
+                            System.out.println("Server ("+getHost()+":"+getPort()+") received '"+new String(data.data.array())+"' from "+data.sourceAddr.getHostAddress()+":"+data.sourcePort);
 
                         toRecv.add(data);
                         listener.onMessage(this);
@@ -145,10 +152,11 @@ public class UDP {
             public void run() {
                 DatagramSocket s = null;
                 try {
-                    System.out.println("Creating client");
+                    if (DEBUG) 
+                        System.out.println("Creating client");
                     s = UDP.createClient();
                     while (run) {
-                        if (toSend.size()>1)
+                        if (DEBUG && toSend.size()>1)
                             System.out.println("Client toSend size="+toSend.size());
                         final Data d = toSend.poll();
                         if (d != null) {
@@ -156,9 +164,10 @@ public class UDP {
                             final ByteBuffer bytes = ByteBuffer.wrap(buffer);
                             d.toBuffer(bytes);
 
-                            System.out.println("Client ("+d.addr.getHostAddress()+":"+d.port+") sending '"+new String(d.data.array())+"'");
+                            if (DEBUG) 
+                                System.out.println("Client ("+d.sourceAddr.getHostAddress()+":"+d.sourcePort+") sending '"+new String(d.data.array())+"'");
 
-                            UDP.sendData(s, d.addr, d.port, buffer);
+                            UDP.sendData(s, d.destAddr, d.destPort, buffer);
                         }
                         Thread.yield();
                     }

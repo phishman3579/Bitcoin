@@ -5,9 +5,9 @@ import java.util.Queue;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.jwetherell.bitcoin.Listener;
-import com.jwetherell.bitcoin.Receiver;
 import com.jwetherell.bitcoin.data_model.Data;
+import com.jwetherell.bitcoin.interfaces.Listener;
+import com.jwetherell.bitcoin.interfaces.Receiver;
 import com.jwetherell.bitcoin.networking.Multicast;
 
 public class MulticastTest {
@@ -42,7 +42,7 @@ public class MulticastTest {
         r.start();     
 
         final Multicast.Peer.RunnableSend send = new Multicast.Peer.RunnableSend();
-        final Data data = new Data(recv.getHost(), recv.getPort(), toSend);
+        final Data data = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), toSend);
         send.getQueue().add(data);
         final Thread s = new Thread(send);
         s.start();
@@ -79,7 +79,7 @@ public class MulticastTest {
             } else if (toStart.equals(SENDER)) {
                 final Multicast.Peer.RunnableSend send = new Multicast.Peer.RunnableSend();
                 Queue<Data> q = send.getQueue();
-                final Data data = new Data(Multicast.GROUP, Multicast.PORT, toSend);
+                final Data data = new Data(Multicast.GROUP, Multicast.PORT, Multicast.GROUP, Multicast.PORT, toSend);
                 q.add(data);
                 final Thread s = new Thread(send);
                 s.start();
