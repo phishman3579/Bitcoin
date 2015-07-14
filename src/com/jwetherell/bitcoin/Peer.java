@@ -1,10 +1,12 @@
 package com.jwetherell.bitcoin;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.jwetherell.bitcoin.data_model.Coin;
@@ -66,9 +68,15 @@ public class Peer {
     private final TCP.Peer.RunnableRecv         recvTcp         = new TCP.Peer.RunnableRecv(listener);
     private final Multicast.Peer.RunnableRecv   recvMulti       = new Multicast.Peer.RunnableRecv(listener);
 
+    // Keep track of everyone's name -> ip+port
     private final Map<String,Data>              peers           = new ConcurrentHashMap<String,Data>();
+
+    // Pending msgs
     private final Map<String,List<Coin>>        pendingCoins    = new ConcurrentHashMap<String,List<Coin>>();
     private final Map<String,List<Coin>>        pendingAcks     = new ConcurrentHashMap<String,List<Coin>>();
+
+    // Tracking serial numbers of peers
+    private final Map<String,Set<Long>>         recvSerials     = new ConcurrentHashMap<String,Set<Long>>();
 
     private final String                        name;
     private final Wallet                        wallet;
@@ -157,7 +165,7 @@ public class Peer {
     private String handleIam(byte[] bytes, Data data) {
         final String name = parseIamMsg(bytes);
 
-        // Ignore your own hello msg
+        // Ignore your own iam msg
         if (name.equals(this.name))
             return name;
 
@@ -169,6 +177,10 @@ public class Peer {
 
     public void sendCoin(String name, int value) {
         final Coin coin = wallet.borrowCoin(name,value);
+        sendCoin(name,coin);
+    }
+
+    public void sendCoin(String name, Coin coin) {
         final Data d = peers.get(name);
         if (d == null){
             // Could not find peer, broadcast a whois
@@ -190,7 +202,21 @@ public class Peer {
             return;
 
         final String from = coin.from;
+        Set<Long> set = recvSerials.get(from);
+        if (set == null) {
+            set = new HashSet<Long>();
+            recvSerials.put(from, set);
+        }
+
+        // Throw away duplicate coins
+        final long serial = coin.getSerial();
+        if (set.contains(serial)) {
+            System.out.println("Not handling coin, it has a dup serial number. from='"+coin.from+"' serial='"+coin.getSerial()+"'");
+            return;
+        }
+
         wallet.addCoin(coin);
+        set.add(serial);
 
         ackCoin(from, coin);
     }

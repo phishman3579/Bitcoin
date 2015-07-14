@@ -5,9 +5,14 @@ import java.nio.ByteBuffer;
 public class Coin {
 
     private static final int    VALUE_LENGTH    = 4;
+    private static final int    SERIAL_LENGTH   = 8;
     private static final int    MSG_LENGTH      = 4;
     private static final int    FROM_LENGTH     = 4;
     private static final int    TO_LENGTH       = 4;
+
+    private static long         serialNumber = 1;
+
+    private long                serial;
 
     public String               from;
     public String               to;
@@ -17,6 +22,7 @@ public class Coin {
     public Coin() { }
 
     public Coin(Coin c) {
+        this.serial = c.serial;
         this.from = c.from;
         this.to = c.to;
         this.msg = c.msg;
@@ -26,20 +32,27 @@ public class Coin {
     public Coin(String from, String to, String msg, int value) {
         if (value<=0)
             throw new RuntimeException("Cannot have a zero or negative value coin");
+        this.serial = serialNumber++;
         this.from = from;
         this.to = to;
         this.msg = msg;
         this.value = value;
     }
 
+    public long getSerial() {
+        return serial;
+    }
+
     public int getBufferLength() {
-        return  VALUE_LENGTH + 
+        return  SERIAL_LENGTH +
+                VALUE_LENGTH + 
                 MSG_LENGTH + msg.getBytes().length + 
                 FROM_LENGTH + from.getBytes().length + 
                 TO_LENGTH + to.getBytes().length;
     }
 
     public void toBuffer(ByteBuffer buffer) {
+        buffer.putLong(serial);
         buffer.putInt(value);
 
         final int mLength = msg.length();
@@ -59,6 +72,7 @@ public class Coin {
     }
 
     public void fromBuffer(ByteBuffer buffer) {
+        serial = buffer.getLong();
         value = buffer.getInt();
 
         final int mLength = buffer.getInt();
@@ -93,6 +107,8 @@ public class Coin {
             return false;
         if (c.value != this.value)
             return false;
+        if (c.serial != this.serial)
+            return false;
         return true;
     }
 
@@ -105,7 +121,8 @@ public class Coin {
         builder.append("from='").append(from).append("'\n");
         builder.append("to='").append(to).append("'\n");
         builder.append("msg=[").append(msg).append("]\n");
-        builder.append("value=").append(value);
+        builder.append("value=").append(value).append(" ");
+        builder.append("serial=").append(serial);
         return builder.toString();
     }
 }
