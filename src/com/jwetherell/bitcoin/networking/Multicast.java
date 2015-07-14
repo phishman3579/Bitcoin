@@ -33,6 +33,9 @@ public class Multicast {
     }
 
     public static void destoryReceiver(MulticastSocket s) throws UnknownHostException, IOException {
+        if (s == null)
+            return;
+
         // Leave the multicast group and close the socket
         s.leaveGroup(InetAddress.getByName(GROUP));
         s.close();
@@ -63,6 +66,9 @@ public class Multicast {
     }
 
     public static void destroySender(MulticastSocket s) throws IOException {
+        if (s == null)
+            return;
+
         // When we have finished sending data close the socket
         s.close();
     }

@@ -13,7 +13,7 @@ import com.jwetherell.bitcoin.data_model.Wallet;
 import com.jwetherell.bitcoin.interfaces.Listener;
 import com.jwetherell.bitcoin.interfaces.Receiver;
 import com.jwetherell.bitcoin.networking.Multicast;
-import com.jwetherell.bitcoin.networking.UDP;
+import com.jwetherell.bitcoin.networking.TCP;
 
 public class Peer {
 
@@ -27,7 +27,7 @@ public class Peer {
 
     private static final int                    NAME_LENGTH     = 4;
 
-    private final UDP.Peer.RunnableSend         sendUdp         = new UDP.Peer.RunnableSend();
+    private final TCP.Peer.RunnableSend         sendTcp         = new TCP.Peer.RunnableSend();
     private final Multicast.Peer.RunnableSend   sendMulti       = new Multicast.Peer.RunnableSend();
 
     private final Listener                      listener        = new Listener() {
@@ -63,7 +63,7 @@ public class Peer {
         }
     };
 
-    private final UDP.Peer.RunnableRecv         recvUdp         = new UDP.Peer.RunnableRecv(listener);
+    private final TCP.Peer.RunnableRecv         recvTcp         = new TCP.Peer.RunnableRecv(listener);
     private final Multicast.Peer.RunnableRecv   recvMulti       = new Multicast.Peer.RunnableRecv(listener);
 
     private final Map<String,Data>              peers           = new ConcurrentHashMap<String,Data>();
@@ -72,48 +72,56 @@ public class Peer {
 
     private final String                        name;
     private final Wallet                        wallet;
-    private final Thread                        udpSend;
-    private final Thread                        udpRecv;
+    private final Thread                        tcpSend;
+    private final Thread                        tcpRecv;
     private final Thread                        multiSend;
     private final Thread                        multiRecv;
-    private final Queue<Data>                   sendUdpQueue;
+    private final Queue<Data>                   sendTcpQueue;
     private final Queue<Data>                   sendMultiQueue;
 
     public Peer(String name) {
         this.name = name;
         this.wallet = new Wallet(name);
 
-        udpSend = new Thread(sendUdp);
-        this.sendUdpQueue = sendUdp.getQueue();
-        udpSend.start();
+        // Senders
+
+        tcpSend = new Thread(sendTcp);
+        this.sendTcpQueue = sendTcp.getQueue();
+        tcpSend.start();
 
         multiSend = new Thread(sendMulti);
         this.sendMultiQueue = sendMulti.getQueue();
         multiSend.start();
 
-        udpRecv = new Thread(recvUdp);
-        udpRecv.start();
+        // Receivers
+
+        tcpRecv = new Thread(recvTcp);
+        tcpRecv.start();
 
         multiRecv = new Thread(recvMulti);
         multiRecv.start();
     }
 
     public void shutdown() throws InterruptedException {
+        TCP.Peer.RunnableSend.run = false;
+        TCP.Peer.RunnableRecv.run = false;
 
-        UDP.Peer.RunnableSend.run = false;
-        UDP.Peer.RunnableRecv.run = false;
         Multicast.Peer.RunnableSend.run = false;
         Multicast.Peer.RunnableRecv.run = false;
 
-        udpSend.interrupt();
-        udpSend.join();
+        // Senders
 
-        udpRecv.interrupt();
-        udpRecv.join();
-        
         multiSend.interrupt();
         multiSend.join();
-        
+
+        tcpSend.interrupt();
+        tcpSend.join();
+
+        // Receivers
+
+        tcpRecv.interrupt();
+        tcpRecv.join();
+
         multiRecv.interrupt();
         multiRecv.join();
     }
@@ -124,6 +132,134 @@ public class Peer {
 
     public Map<String,Data> getPeers() {
         return peers;
+    }
+
+    private void sendWhois(String name) {
+        final byte[] msg = getWhoisMsg(name);
+        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), msg);
+        sendMultiQueue.add(data);
+    }
+
+    private void handleWhois(byte[] bytes, Data data) {
+        final String name = parseWhoisMsg(bytes);
+
+        // If your name then shout it out!
+        if (name.equals(this.name))
+            sendIam();
+    }
+
+    private void sendIam() {
+        final byte[] msg = getIamMsg(name);
+        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), msg);
+        sendMultiQueue.add(data);
+    }
+
+    private String handleIam(byte[] bytes, Data data) {
+        final String name = parseIamMsg(bytes);
+
+        // Ignore your own hello msg
+        if (name.equals(this.name))
+            return name;
+
+        // Add peer
+        peers.put(name, data);
+
+        return name;
+    }
+
+    public void sendCoin(String name, int value) {
+        final Coin coin = wallet.borrowCoin(name,value);
+        final Data d = peers.get(name);
+        if (d == null){
+            // Could not find peer, broadcast a whois
+            addPendingCoin(name,coin);
+            sendWhois(name);
+            return;
+        }
+
+        final byte[] msg = getCoinMsg(coin);
+        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, msg);
+        sendTcpQueue.add(data);
+    }
+
+    private void handleCoin(byte[] bytes) {
+        final Coin coin = parseCoinMsg(bytes);
+
+        // If not our coin, ignore
+        if (!(name.equals(coin.to)))
+            return;
+
+        final String from = coin.from;
+        wallet.addCoin(coin);
+
+        ackCoin(from, coin);
+    }
+
+    public void ackCoin(String name, Coin coin) {
+        final Data d = peers.get(name);
+        if (d == null){
+            // Could not find peer, broadcast a whois
+            addPendingCoinAck(name,coin);
+            sendWhois(name);
+            return;
+        }
+
+        final byte[] msg = getCoinAck(coin);
+        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, msg);
+        sendTcpQueue.add(data);
+    }
+
+    private void handleCoinAck(byte[] bytes) {
+        final Coin coin = parseCoinAck(bytes);
+        wallet.removeBorrowedCoin(coin);
+    }
+
+    private void addPendingCoin(String n, Coin c) {
+        List<Coin> l = pendingCoins.get(n);
+        if (l == null) {
+            l = new LinkedList<Coin>();
+            pendingCoins.put(n, l);
+        }
+        l.add(c);
+    }
+
+    private void processPendingCoins(String n) {
+        List<Coin> l = pendingCoins.get(n);
+        if (l==null || l.size()==0)
+            return;
+        while (l.size()>0) {
+            final Coin c = l.remove(0);
+            final Data d = peers.get(n);
+            if (d == null)
+                return;
+            final byte[] msg = getCoinMsg(c);
+            final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, msg);
+            sendTcpQueue.add(data);
+        }
+    }
+
+    private void addPendingCoinAck(String n, Coin c) {
+        List<Coin> l = pendingAcks.get(n);
+        if (l == null) {
+            l = new LinkedList<Coin>();
+            pendingAcks.put(n, l);
+        }
+        l.add(c);
+    }
+
+    private void processPendingCoinAcks(String n) {
+        List<Coin> l = pendingAcks.get(n);
+        if (l==null || l.size()==0)
+            return;
+        while (l.size()>0) {
+            final Coin c = l.remove(0);
+            final Data d = peers.get(n);
+            if (d == null)
+                return;
+            final byte[] msg = getCoinAck(c);
+            final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, msg);
+            sendTcpQueue.add(data);
+        }
     }
 
     public static final byte[] getIamMsg(String name) {
@@ -152,25 +288,6 @@ public class Peer {
         return new String(bName);
     }
 
-    private void sendIam() {
-        final byte[] msg = getIamMsg(name);
-        final Data data = new Data(recvUdp.getHost(), recvUdp.getPort(), recvMulti.getHost(), recvMulti.getPort(), msg);
-        sendMultiQueue.add(data);
-    }
-
-    private String handleIam(byte[] bytes, Data data) {
-        final String name = parseIamMsg(bytes);
-
-        // Ignore your own hello msg
-        if (name.equals(this.name))
-            return name;
-
-        // Add peer
-        peers.put(name, data);
-
-        return name;
-    }
-
     public static final byte[] getWhoisMsg(String name) {
         final byte[] bName = name.getBytes();
         final int nameLength = bName.length;
@@ -197,20 +314,6 @@ public class Peer {
         return new String(bName);
     }
 
-    private void sendWhois(String name) {
-        final byte[] msg = getWhoisMsg(name);
-        final Data data = new Data(recvUdp.getHost(), recvUdp.getPort(), recvMulti.getHost(), recvMulti.getPort(), msg);
-        sendMultiQueue.add(data);
-    }
-
-    private void handleWhois(byte[] bytes, Data data) {
-        final String name = parseWhoisMsg(bytes);
-
-        // If your name then shout it out!
-        if (name.equals(this.name))
-            sendIam();
-    }
-
     public static final byte[] getCoinMsg(Coin coin) {
         final byte[] msg = new byte[HEADER_LENGTH + coin.getBufferLength()];
         final ByteBuffer coinBuffer = ByteBuffer.allocate(coin.getBufferLength());
@@ -232,34 +335,6 @@ public class Peer {
         return coin;
     }
 
-    public void sendCoin(String name, int value) {
-        final Coin coin = wallet.borrowCoin(name,value);
-        final Data d = peers.get(name);
-        if (d == null){
-            // Could not find peer, broadcast a whois
-            addPendingCoin(name,coin);
-            sendWhois(name);
-            return;
-        }
-
-        final byte[] msg = getCoinMsg(coin);
-        final Data data = new Data(recvUdp.getHost(), recvUdp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, msg);
-        sendUdpQueue.add(data);
-    }
-
-    private void handleCoin(byte[] bytes) {
-        final Coin coin = parseCoinMsg(bytes);
-
-        // If not our coin, ignore
-        if (!(name.equals(coin.to)))
-            return;
-
-        final String from = coin.from;
-        wallet.addCoin(coin);
-
-        ackCoin(from, coin);
-    }
-
     public static final byte[] getCoinAck(Coin coin) {
         final byte[] msg = new byte[HEADER_LENGTH + coin.getBufferLength()];
         final ByteBuffer coinBuffer = ByteBuffer.allocate(coin.getBufferLength());
@@ -279,73 +354,6 @@ public class Peer {
         coin.fromBuffer(buffer);
 
         return coin;
-    }
-
-    public void ackCoin(String name, Coin coin) {
-        final Data d = peers.get(name);
-        if (d == null){
-            // Could not find peer, broadcast a whois
-            addPendingCoinAck(name,coin);
-            sendWhois(name);
-            return;
-        }
-
-        final byte[] msg = getCoinAck(coin);
-        final Data data = new Data(recvUdp.getHost(), recvUdp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, msg);
-        sendUdpQueue.add(data);
-    }
-
-    private void handleCoinAck(byte[] bytes) {
-        final Coin coin = parseCoinAck(bytes);
-        wallet.removeBorrowedCoin(coin);
-    }
-
-    private void addPendingCoin(String n, Coin c) {
-        List<Coin> l = pendingCoins.get(n);
-        if (l == null) {
-            l = new LinkedList<Coin>();
-            pendingCoins.put(n, l);
-        }
-        l.add(c);
-    }
-
-    private void processPendingCoins(String n) {
-        List<Coin> l = pendingCoins.get(n);
-        if (l==null || l.size()==0)
-            return;
-        while (l.size()>0) {
-            final Coin c = l.remove(0);
-            final Data d = peers.get(n);
-            if (d == null)
-                return;
-            final byte[] msg = getCoinMsg(c);
-            final Data data = new Data(recvUdp.getHost(), recvUdp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, msg);
-            sendUdpQueue.add(data);
-        }
-    }
-
-    private void addPendingCoinAck(String n, Coin c) {
-        List<Coin> l = pendingAcks.get(n);
-        if (l == null) {
-            l = new LinkedList<Coin>();
-            pendingAcks.put(n, l);
-        }
-        l.add(c);
-    }
-
-    private void processPendingCoinAcks(String n) {
-        List<Coin> l = pendingAcks.get(n);
-        if (l==null || l.size()==0)
-            return;
-        while (l.size()>0) {
-            final Coin c = l.remove(0);
-            final Data d = peers.get(n);
-            if (d == null)
-                return;
-            final byte[] msg = getCoinAck(c);
-            final Data data = new Data(recvUdp.getHost(), recvUdp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, msg);
-            sendUdpQueue.add(data);
-        }
     }
 
     /**

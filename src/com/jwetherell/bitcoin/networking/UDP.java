@@ -29,7 +29,8 @@ public class UDP {
     }
 
     public static void destoryServer(DatagramSocket s) {
-        s.close();
+        if (s != null)
+            s.close();
     }
 
     public static DatagramSocket createClient() throws SocketException {
@@ -38,7 +39,8 @@ public class UDP {
     }
 
     public static void destoryClient(DatagramSocket s) {
-        s.close();
+        if (s != null)
+            s.close();
     }
 
     public static void sendData(DatagramSocket socket, InetAddress IPAddress, int port, byte[] buffer) throws IOException {
@@ -176,7 +178,8 @@ public class UDP {
                 } catch (IOException e) {
                     e.printStackTrace();
                 } finally { 
-                    UDP.destoryClient(s);
+                    if (s != null)
+                        UDP.destoryClient(s);
                 }
             }
         };

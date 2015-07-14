@@ -7,6 +7,7 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -22,7 +23,7 @@ public class TCP {
 
     public static final String      LOCAL       = "127.0.0.1";
 
-    public static int               port        = 2222;
+    public static int               port        = 2221;
 
     public static ServerSocket createServer(int port) throws IOException {
         final ServerSocket serverSocket = new ServerSocket(port);
@@ -30,7 +31,8 @@ public class TCP {
     }
 
     public static void destoryServer(ServerSocket s) throws IOException {
-        s.close();
+        if (s != null)
+            s.close();
     }
 
     public static Socket createClient(String host, int port) throws IOException {
@@ -39,22 +41,34 @@ public class TCP {
     }
 
     public static void destoryClient(Socket s) throws IOException {
-        s.close();
+        if (s != null)
+            s.close();
     }
 
     public static void sendData(Socket socket, byte[] buffer) throws IOException {
-        OutputStream out = socket.getOutputStream(); 
-        DataOutputStream dos = new DataOutputStream(out);
+        final OutputStream out = socket.getOutputStream(); 
+        final DataOutputStream dos = new DataOutputStream(out);
         dos.write(buffer);
+        dos.flush();
+        dos.close();
+        out.flush();
+        out.close();
     }
 
     /**
      * Blocking call
      */
     public static boolean recvData(ServerSocket serverSocket, byte[] buffer) throws IOException {
-        final Socket incomingSocket = serverSocket.accept(); 
+        serverSocket.setSoTimeout(100);
+        Socket incomingSocket = null;
+        try {
+            incomingSocket = serverSocket.accept();
+        } catch (SocketTimeoutException e) {
+            return false;
+        }
         final InputStream input = incomingSocket.getInputStream();
         input.read(buffer);
+        input.close();
         return true;
     }
 

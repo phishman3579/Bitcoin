@@ -213,7 +213,7 @@ public class PeerTest {
         // p1=18, p2=16, p3=11
 
         while (p1.getWallet().getBalance()!=18 || p2.getWallet().getBalance()!=16 || p3.getWallet().getBalance()!=11) {
-            Thread.sleep(1);
+            Thread.yield();
         }
 
         p1.shutdown();
