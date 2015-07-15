@@ -42,10 +42,14 @@ public class MulticastTest {
         r.start();     
 
         final Multicast.Peer.RunnableSend send = new Multicast.Peer.RunnableSend();
-        final Data data = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), toSend);
-        send.getQueue().add(data);
         final Thread s = new Thread(send);
         s.start();
+
+        // Wait for everyone to initialize
+        Thread.sleep(250);
+
+        final Data data = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), toSend);
+        send.getQueue().add(data);
 
         // Wait for threads to finish
         r.join();

@@ -62,7 +62,8 @@ public class PeerTest {
         Peer p3 = new Peer(n3);
         p3.getWallet().addCoin(new Coin("me","you","Coinage.",15));
 
-        Thread.yield();
+        // Wait for everyone to initialize
+        Thread.sleep(250);
 
         p1.sendCoin(n2, 3);
         // p1=7, p2=23, p3=15
@@ -70,6 +71,8 @@ public class PeerTest {
         // p1=7, p2=16, p3=22
         p3.sendCoin(n1, 11);
         // p1=18, p2=16, p3=11
+
+        Thread.yield();
 
         while (p1.getWallet().getBalance()!=18 || p2.getWallet().getBalance()!=16 || p3.getWallet().getBalance()!=11) {
             Thread.yield();
@@ -95,6 +98,9 @@ public class PeerTest {
         Coin c1 = new Coin(n1,n2,"Coinage.",10);
         Peer p1 = new Peer(n1);
         Peer p2 = new Peer(n2);
+
+        // Wait for everyone to initialize
+        Thread.sleep(250);
 
         // Send coin
         Thread.yield();
