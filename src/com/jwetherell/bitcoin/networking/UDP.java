@@ -64,7 +64,7 @@ public class UDP {
 
     public static final class Peer { 
 
-        private static final int        BUFFER_SIZE     = 64*1000;
+        private static final int        BUFFER_SIZE     = 1*1024;
 
         private Peer() { }
 

@@ -85,7 +85,7 @@ public class Multicast {
 
     public static final class Peer {
 
-        private static final int BUFFER_SIZE = 64*1000;
+        private static final int BUFFER_SIZE = 1*1024;
 
         public static final class RunnableRecv implements Runnable, Receiver {
 

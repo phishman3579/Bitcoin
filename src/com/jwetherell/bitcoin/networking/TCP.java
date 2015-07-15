@@ -59,7 +59,7 @@ public class TCP {
      * Blocking call
      */
     public static boolean recvData(ServerSocket serverSocket, byte[] buffer) throws IOException {
-        serverSocket.setSoTimeout(100);
+        serverSocket.setSoTimeout(10);
         Socket incomingSocket = null;
         try {
             incomingSocket = serverSocket.accept();
@@ -74,7 +74,7 @@ public class TCP {
 
     public static final class Peer { 
 
-        private static final int        BUFFER_SIZE     = 128*1000;
+        private static final int        BUFFER_SIZE     = 1*1024;
 
         private Peer() { }
 
