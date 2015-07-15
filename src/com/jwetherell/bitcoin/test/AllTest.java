@@ -15,6 +15,7 @@ import org.junit.runners.Suite.SuiteClasses;
         com.jwetherell.bitcoin.test.TCPTest.class,
         com.jwetherell.bitcoin.test.MulticastTest.class,
         com.jwetherell.bitcoin.test.PeerTest.class,
+        com.jwetherell.bitcoin.test.CoinExchangerTest.class,
     }
 )
 //@formatter:on
