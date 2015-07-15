@@ -15,9 +15,11 @@ public class DataTest {
         final int sPort = 1024;
         final String dHost = "localhost";
         final int dPort = 1025;
+        final byte[] key = "key".getBytes();
+        final byte[] sig = "sig".getBytes();
         final byte[] msg = "This is a message".getBytes();
 
-        final Data d1 = new Data(sHost,sPort,dHost,dPort,msg);
+        final Data d1 = new Data(sHost,sPort,dHost,dPort,sig,key,msg);
         ByteBuffer b = ByteBuffer.allocate(d1.getBufferLength());
         d1.toBuffer(b);
 

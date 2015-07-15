@@ -8,6 +8,7 @@ import org.junit.runners.Suite.SuiteClasses;
 @RunWith(Suite.class)
 @SuiteClasses(
     {
+        com.jwetherell.bitcoin.test.EncodeDecodeTest.class,
         com.jwetherell.bitcoin.test.CoinTest.class,
         com.jwetherell.bitcoin.test.DataTest.class,
         com.jwetherell.bitcoin.test.WalletTest.class,

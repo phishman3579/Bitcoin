@@ -1,5 +1,18 @@
 package com.jwetherell.bitcoin;
 
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.Signature;
+import java.security.SignatureException;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -12,6 +25,41 @@ import com.jwetherell.bitcoin.data_model.Wallet;
  * Class which handles the logic of maintaining the wallet.
  */
 public class CoinExchanger extends Peer {
+
+    private final KeyPairGenerator gen;
+    private final SecureRandom random;
+    private final Signature enc;
+    private final Signature dec;
+    private final KeyPair pair;
+    private final PrivateKey privateKey;
+    private final KeyFactory keyFactory;
+    private final PublicKey publicKey;
+    private final byte[] bPublicKey;
+    {
+        try {
+            gen = KeyPairGenerator.getInstance("DSA", "SUN");
+            random = SecureRandom.getInstance("SHA1PRNG", "SUN");
+            gen.initialize(512, random);
+
+            enc = Signature.getInstance("SHA1withDSA", "SUN");
+            dec = Signature.getInstance("SHA1withDSA", "SUN");
+
+            pair = gen.generateKeyPair();
+            privateKey = pair.getPrivate();
+            enc.initSign(privateKey);
+
+            publicKey = pair.getPublic();
+            bPublicKey = publicKey.getEncoded();
+
+            keyFactory = KeyFactory.getInstance("DSA", "SUN");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        } catch (NoSuchProviderException e) {
+            throw new RuntimeException(e);
+        } catch (InvalidKeyException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     // Tracking serial numbers of peers
     private final Map<String,Set<Long>>       recvSerials     = new ConcurrentHashMap<String,Set<Long>>();
@@ -27,18 +75,49 @@ public class CoinExchanger extends Peer {
         return wallet;
     }
 
-    public void sendCoin(String name, int value) {
+    @Override
+    protected byte[] getPublicKey() {
+        return bPublicKey;
+    }
+
+    public synchronized void sendCoin(String name, int value) {
         // Borrow the coin from our wallet until we receive an ACK
         final Coin coin = wallet.borrowCoin(name,value);
         super.sendCoin(name,coin);
     }
 
-    /** Really only here to open up the method for JUnits **/
-    public void sendCoin(String name, Coin coin) {
-        super.sendCoin(name,coin);
+    @Override
+    protected synchronized byte[] signMsg(byte[] bytes) {
+        byte[] signed = null;
+        try {
+            enc.update(bytes);
+            signed = enc.sign();
+        } catch (SignatureException e) {
+            System.err.println("Could not encode msg. "+e);
+        }
+        return signed;
     }
 
-    protected void handleCoin(String from, Coin coin) {
+    @Override
+    protected synchronized boolean verifyMsg(byte[] publicKey, byte[] signature, byte[] bytes) {
+        boolean verified = false;
+        try {
+            PublicKey key = keyFactory.generatePublic(new X509EncodedKeySpec(publicKey));
+            dec.initVerify(key);
+            dec.update(bytes);
+            verified = dec.verify(signature);
+        } catch (SignatureException e) {
+            System.err.println("Could not decode msg. "+e);
+        } catch (InvalidKeyException e) {
+            System.err.println("Could not decode msg. "+e);
+        } catch (InvalidKeySpecException e) {
+            System.err.println("Could not decode msg. "+e);
+        }
+        return verified;
+    }
+
+    @Override
+    protected synchronized void handleCoin(String from, Coin coin) {
         // If not our coin, ignore
         if (!(name.equals(coin.to)))
             return;
@@ -60,7 +139,8 @@ public class CoinExchanger extends Peer {
         set.add(serial);
     }
 
-    protected void handleCoinAck(Coin coin) {
+    @Override
+    protected synchronized void handleCoinAck(Coin coin) {
         // The other peer ACK'd our transaction!
         wallet.removeBorrowedCoin(coin);
     }

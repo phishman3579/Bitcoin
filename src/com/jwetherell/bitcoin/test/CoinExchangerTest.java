@@ -58,8 +58,8 @@ public class CoinExchangerTest {
         String n1 = "n1";
         String n2 = "n2";
         Coin c1 = new Coin(n1,n2,"Coinage.",10);
-        CoinExchanger p1 = new CoinExchanger(n1);
-        CoinExchanger p2 = new CoinExchanger(n2);
+        MyCoinExchanger p1 = new MyCoinExchanger(n1);
+        MyCoinExchanger p2 = new MyCoinExchanger(n2);
 
         // Wait for everyone to initialize
         Thread.sleep(250);
@@ -91,5 +91,18 @@ public class CoinExchangerTest {
 
         p1.shutdown();
         p2.shutdown();
+    }
+
+    private static class MyCoinExchanger extends CoinExchanger {
+
+        public MyCoinExchanger(String name) {
+            super(name);
+        }
+
+        /** Really only here to open up the method for JUnits **/
+        public void sendCoin(String name, Coin coin) {
+            super.sendCoin(name,coin);
+        }
+
     }
 }

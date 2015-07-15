@@ -17,6 +17,8 @@ public class MulticastTest {
 
     @Test
     public void test() throws InterruptedException {
+        final byte[] key = "key".getBytes();
+        final byte[] sig = "sig".getBytes();
         final byte[] toSend = "Hello world.".getBytes();
         final Listener listener = new Listener() {
             /**
@@ -48,7 +50,7 @@ public class MulticastTest {
         // Wait for everyone to initialize
         Thread.sleep(250);
 
-        final Data data = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), toSend);
+        final Data data = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), sig, key, toSend);
         send.getQueue().add(data);
 
         // Wait for threads to finish
@@ -57,6 +59,8 @@ public class MulticastTest {
     }
 
     public static void main(String[] args) throws Exception {
+        final byte[] key = "key".getBytes();
+        final byte[] sig = "sig".getBytes();
         final byte[] toSend = "Hello world.".getBytes();
         final Listener listener = new Listener() {
             /**
@@ -83,7 +87,7 @@ public class MulticastTest {
             } else if (toStart.equals(SENDER)) {
                 final Multicast.Peer.RunnableSend send = new Multicast.Peer.RunnableSend();
                 Queue<Data> q = send.getQueue();
-                final Data data = new Data(Multicast.GROUP, Multicast.PORT, Multicast.GROUP, Multicast.PORT, toSend);
+                final Data data = new Data(Multicast.GROUP, Multicast.PORT, Multicast.GROUP, Multicast.PORT, sig, key, toSend);
                 q.add(data);
                 final Thread s = new Thread(send);
                 s.start();
