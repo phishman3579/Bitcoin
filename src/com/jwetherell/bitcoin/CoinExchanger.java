@@ -1,5 +1,6 @@
 package com.jwetherell.bitcoin;
 
+import java.nio.ByteBuffer;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -17,19 +18,21 @@ import com.jwetherell.bitcoin.data_model.Coin;
 import com.jwetherell.bitcoin.data_model.Wallet;
 
 /**
- * Class which handles the logic of maintaining the wallet.
+ * Class which handles the logic of maintaining the wallet including tracking serial numbers and public/private key encryption.
+ * 
+ * Thread-Safe (Hopefully)
  */
 public class CoinExchanger extends Peer {
 
-    private final KeyPairGenerator gen;
-    private final SecureRandom random;
-    private final Signature enc;
-    private final Signature dec;
-    private final KeyPair pair;
-    private final PrivateKey privateKey;
-    private final KeyFactory keyFactory;
-    private final PublicKey publicKey;
-    private final byte[] bPublicKey;
+    private final KeyPairGenerator              gen;
+    private final SecureRandom                  random;
+    private final Signature                     enc;
+    private final Signature                     dec;
+    private final KeyPair                       pair;
+    private final PrivateKey                    privateKey;
+    private final KeyFactory                    keyFactory;
+    private final PublicKey                     publicKey;
+    private final byte[]                        bPublicKey;
     {
         try {
             gen = KeyPairGenerator.getInstance("DSA", "SUN");
@@ -53,9 +56,11 @@ public class CoinExchanger extends Peer {
     }
 
     // Tracking serial numbers of peers
-    private final Map<String,Set<Long>>       recvSerials     = new ConcurrentHashMap<String,Set<Long>>();
+    private final Map<String,Set<Long>>         recvSerials     = new ConcurrentHashMap<String,Set<Long>>();
+    // Keep track of everyone's name -> public key
+    private final Map<String,ByteBuffer>        publicKeys      = new ConcurrentHashMap<String,ByteBuffer>();
     // My wallet
-    private final Wallet                      wallet;
+    private final Wallet                        wallet;
 
     public CoinExchanger(String name) {
         super(name);
@@ -71,7 +76,15 @@ public class CoinExchanger extends Peer {
         return bPublicKey;
     }
 
-    public synchronized void sendCoin(String name, int value) {
+    @Override
+    protected void newPublicKey(String name, byte[] publicKey) {
+        // Copy and store the key
+        final byte[] copy = new byte[publicKey.length];
+        System.arraycopy(publicKey, 0, copy, 0, publicKey.length);
+        publicKeys.put(name, ByteBuffer.wrap(copy));
+    }
+
+    public void sendCoin(String name, int value) {
         // Borrow the coin from our wallet until we receive an ACK
         final Coin coin = wallet.borrowCoin(name,value);
         super.sendCoin(name,coin);
@@ -104,10 +117,15 @@ public class CoinExchanger extends Peer {
     }
 
     @Override
-    protected synchronized void handleCoin(String from, Coin coin) {
-        // If not our coin, ignore
-        if (!(myName.equals(coin.to)))
-            return;
+    protected boolean handleCoin(String from, Coin coin, byte[] signature, byte[] bytes) {
+        if (!publicKeys.containsKey(from))
+            return false;
+
+        final byte[] key = publicKeys.get(from).array();
+        if (!verifyMsg(key, signature, bytes)) {
+            System.out.println("handleCoin() coin NOT verified. coin="+coin.toString());
+            return true;
+        }
 
         // Throw away duplicate coin requests
         Set<Long> set = recvSerials.get(from);
@@ -118,18 +136,31 @@ public class CoinExchanger extends Peer {
         final long serial = coin.getSerial();
         if (set.contains(serial)) {
             System.err.println("Not handling coin, it has a dup serial number. serial='"+coin.getSerial()+"' from='"+coin.from+"'");
-            return;
+            return true;
         }
 
         // Yey, our coin!
         wallet.addCoin(coin);
         set.add(serial);
+
+        return true;
     }
 
     @Override
-    protected synchronized void handleCoinAck(Coin coin) {
+    protected boolean handleCoinAck(String from, Coin coin, byte[] signature, byte[] bytes) {
+        if (!publicKeys.containsKey(from))
+            return false;
+
+        final byte[] key = publicKeys.get(from).array();
+        if (!verifyMsg(key, signature, bytes)) {
+            System.out.println("handleCoinAck() coin NOT verified. coin="+coin.toString());
+            return true;
+        }
+
         // The other peer ACK'd our transaction!
         wallet.removeBorrowedCoin(coin);
+
+        return true;
     }
 
     /**

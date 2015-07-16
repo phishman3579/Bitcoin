@@ -1,11 +1,11 @@
 package com.jwetherell.bitcoin;
 
 import java.nio.ByteBuffer;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.jwetherell.bitcoin.data_model.Coin;
 import com.jwetherell.bitcoin.data_model.Data;
@@ -16,6 +16,8 @@ import com.jwetherell.bitcoin.networking.TCP;
 
 /**
  * Class which handles lower level sending and receiving of messages.
+ * 
+ * Thread-Safe (Hopefully)
  */
 public abstract class Peer {
 
@@ -71,10 +73,8 @@ public abstract class Peer {
 
     // Keep track of everyone's name -> ip+port
     private final Map<String,Data>              peers           = new ConcurrentHashMap<String,Data>();
-    // Keep track of everyone's name -> public key
-    private final Map<String,ByteBuffer>        publicKeys      = new ConcurrentHashMap<String,ByteBuffer>();
 
-    // Pending msgs
+    // Pending msgs (happens if we don't know the ip+port OR the public key of a host
     private final Map<String,List<Queued>>      coinsToSend     = new ConcurrentHashMap<String,List<Queued>>();
     private final Map<String,List<Queued>>      coinsToRecv     = new ConcurrentHashMap<String,List<Queued>>();
 
@@ -82,6 +82,8 @@ public abstract class Peer {
     private final Thread                        tcpRecv;
     private final Thread                        multiSend;
     private final Thread                        multiRecv;
+
+    // Thread safe queues for sending messages
     private final Queue<Data>                   sendTcpQueue;
     private final Queue<Data>                   sendMultiQueue;
 
@@ -166,12 +168,15 @@ public abstract class Peer {
 
         // Add peer
         peers.put(name, data);
-        final byte[] copy = new byte[key.length];
-        System.arraycopy(key, 0, copy, 0, key.length);
-        publicKeys.put(name, ByteBuffer.wrap(copy));
+
+        // Public key
+        newPublicKey(name, key);
 
         return name;
     }
+
+    /** What do you want to do with a new public key **/
+    protected abstract void newPublicKey(String name, byte[] publicKey);
 
     /** Sign message with private key **/
     protected abstract byte[] signMsg(byte[] bytes);
@@ -199,20 +204,13 @@ public abstract class Peer {
     }
 
     private void handleCoin(String from, Coin coin, Data data) {
-        if (!publicKeys.containsKey(from)) {
+        // Let the app logic do what it needs to
+        boolean knownPublicKey = handleCoin(from, coin, data.signature.array(), data.data.array());
+        if (!knownPublicKey) {
             addCoinToRecv(false, from, coin, data);
             sendWhois(from);
             return;
         }
-
-        final byte[] key = publicKeys.get(from).array();
-        if (!verifyMsg(key, data.signature.array(), data.data.array())) {
-            System.out.println("handleCoin() coin NOT verified. data="+data.toString());
-            return;
-        }
-
-        // Let the app logic do what it needs to
-        handleCoin(from,coin);
 
         // Send an ACK msg
         ackCoin(from, coin);
@@ -221,8 +219,8 @@ public abstract class Peer {
     /** Verify the bytes given the public key and signature **/
     protected abstract boolean verifyMsg(byte[] publicKey, byte[] signature, byte[] bytes);
 
-    /** What do you want to do now that you have received a coin **/
-    protected abstract void handleCoin(String from, Coin coin);
+    /** What do you want to do now that you have received a coin, return false if the public key is unknown **/
+    protected abstract boolean handleCoin(String from, Coin coin, byte[] sig, byte[] bytes);
 
     private void ackCoin(String to, Coin coin) {
         final Data d = peers.get(to);
@@ -246,30 +244,23 @@ public abstract class Peer {
     }
 
     private void handleCoinAck(String from, Coin coin, Data data) {
-        if (!publicKeys.containsKey(from)) {
+        // Let the app logic do what it needs to
+        boolean knownPublicKey = handleCoinAck(from, coin, data.signature.array(), data.data.array());
+        if (!knownPublicKey) {
             addCoinToRecv(true, from, coin, data);
             sendWhois(from);
             return;
         }
-
-        final byte[] key = publicKeys.get(from).array();
-        if (!verifyMsg(key, data.signature.array(), data.data.array())) {
-            System.out.println("handleCoinAck() coin NOT verified. data="+data.toString());
-            return;
-        }
-
-        // Let the app logic do what it needs to
-        handleCoinAck(coin);
     }
 
-    /** What do you want to do now that you received an ACK for a sent coin **/
-    protected abstract void handleCoinAck(Coin coin);
+    /** What do you want to do now that you received an ACK for a sent coin, return false if the public key is unknown **/
+    protected abstract boolean handleCoinAck(String from, Coin coin, byte[] sig, byte[] bytes);
 
     private void addCoinToSend(boolean isAck, String to, Coin c) {
         final Queued q = new Queued(isAck, c, null);
         List<Queued> l = coinsToSend.get(to);
         if (l == null) {
-            l = new LinkedList<Queued>();
+            l = new CopyOnWriteArrayList<Queued>();
             coinsToSend.put(to, l);
         }
         l.add(q);
@@ -293,7 +284,7 @@ public abstract class Peer {
         final Queued q = new Queued(isAck, c, d);
         List<Queued> lc = coinsToRecv.get(from);
         if (lc == null) {
-            lc = new LinkedList<Queued>();
+            lc = new CopyOnWriteArrayList<Queued>();
             coinsToRecv.put(from, lc);
         }
         lc.add(q);

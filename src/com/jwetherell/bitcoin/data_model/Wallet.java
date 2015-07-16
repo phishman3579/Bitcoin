@@ -3,6 +3,11 @@ package com.jwetherell.bitcoin.data_model;
 import java.util.LinkedList;
 import java.util.List;
 
+/**
+ * Wallet which tracks the balance and pending transactions.
+ * 
+ * Thread-Safe (Hopefully)
+ */
 public class Wallet {
 
     private final String        name;
@@ -23,21 +28,21 @@ public class Wallet {
         return balance;
     }
 
-    public Coin borrowCoin(String newOwner, int value) {
+    public synchronized Coin borrowCoin(String newOwner, int value) {
         pending += value;
         final String msg = "Borrowed "+value+" from "+name+"'s wallet\n"+toString();
         System.out.println(msg);
         return (new Coin(name, newOwner, msg, value));
     }
 
-    public void returnBorrowedCoin(Coin coin) {
+    public synchronized void returnBorrowedCoin(Coin coin) {
         pending -= coin.value;
         coin.to = name;
         final String msg = "Returning borrowed "+coin.value+" from "+name+"'s wallet\n"+toString();
         System.out.println(msg);
     }
 
-    public void removeBorrowedCoin(Coin coin) {
+    public synchronized void removeBorrowedCoin(Coin coin) {
         pending -= coin.value;
         balance -= coin.value;
 
@@ -50,7 +55,7 @@ public class Wallet {
         System.out.println(msg);
     }
 
-    public void addCoin(Coin coin) {
+    public synchronized void addCoin(Coin coin) {
         balance += coin.value;
         coin.to = name;
 
@@ -61,7 +66,7 @@ public class Wallet {
         System.out.println("Added "+coin.value+" to "+name+"'s wallet\n"+toString());
     }
 
-    public Coin removeCoin(String newOwner, int value) {
+    public synchronized Coin removeCoin(String newOwner, int value) {
         balance -= value;
 
         final String msg = "Removed "+value+" from "+name+"'s wallet\n"+toString();

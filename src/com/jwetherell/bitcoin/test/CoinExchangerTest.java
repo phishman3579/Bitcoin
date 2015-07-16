@@ -48,7 +48,47 @@ public class CoinExchangerTest {
         p2.shutdown();
     }
 
-    @Test//(timeout=10000)
+    @Test(timeout=1000)
+    public void testBadSignature() throws InterruptedException {
+        String n1 = "n1";
+        String n2 = "n2";
+        Coin c1 = new Coin(n1,n2,"Coinage.",10);
+        MyCoinExchanger p1 = new MyCoinExchanger(n1);
+        MyCoinExchanger p2 = new MyCoinExchanger(n2);
+
+        // Wait for everyone to initialize
+        Thread.sleep(250);
+
+        // Send coin
+        p1.sendCoin(n2,c1);
+
+        Thread.yield();
+
+        while (p2.getWallet().getBalance()!=10) {
+            Thread.yield();
+        }
+        Assert.assertTrue(p2.getWallet().getBalance()==10);
+
+        // This is a dup and should be dropped
+        p1.sendCoin(n2,c1); 
+
+        Thread.yield();
+
+        // This should be accepted
+        p1.sendCoin(n2,20);
+
+        Thread.yield();
+
+        while (p2.getWallet().getBalance()!=30) {
+            Thread.yield();
+        }
+        Assert.assertTrue(p2.getWallet().getBalance()==30);
+
+        p1.shutdown();
+        p2.shutdown();
+    }
+
+    @Test(timeout=1000)
     public void testCoinExchangers2() throws InterruptedException {
         String n1 = "n1";
         CoinExchanger p1 = new CoinExchanger(n1);
@@ -82,7 +122,7 @@ public class CoinExchangerTest {
         Assert.assertTrue(p2.getWallet().getBalance()==16);
     }
 
-    @Test//(timeout=1000)
+    @Test(timeout=1000)
     public void testCoinExchangers3() throws InterruptedException {
         String n1 = "n1";
         CoinExchanger p1 = new CoinExchanger(n1);
