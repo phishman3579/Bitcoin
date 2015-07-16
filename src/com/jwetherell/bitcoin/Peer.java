@@ -309,7 +309,7 @@ public abstract class Peer {
         final Transaction trans = parseValidationMsg(bytes);
         if (trans.getIsValid()) {
             // Yey! we got a validation from the community
-            handleValidation(trans.getCoin().from, trans, data.signature.array(), data.data.array());
+            handleValidation(trans);
 
             return;
         }
@@ -332,7 +332,7 @@ public abstract class Peer {
     protected abstract HashStatus checkTransaction(String from, Transaction trans, byte[] signature, byte[] bytes);
 
     /** What do you want to do now that you received a valid transaction **/
-    protected abstract void handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes);
+    protected abstract void handleValidation(Transaction trans);
 
     private void addCoinToSend(boolean isAck, String to, Coin c) {
         final Queued q = new Queued(isAck, c, null);

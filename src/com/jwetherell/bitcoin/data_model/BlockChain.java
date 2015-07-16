@@ -54,12 +54,15 @@ public class BlockChain {
     }
 
     public synchronized HashStatus addTransaction(Transaction trans) {
-        final HashStatus status = checkTransaction(trans);
-        if (status != HashStatus.SUCCESS) {
-            return status;
-        }
-
+        // Already processed this coin.
         final Coin coin = trans.getCoin();
+        if (transactions.contains(coin))
+            return HashStatus.SUCCESS;
+
+        final HashStatus status = checkTransaction(trans);
+        if (status != HashStatus.SUCCESS)
+            return status;
+
         final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
         coin.toBuffer(buffer);
         final byte[] bytes = buffer.array();
@@ -105,13 +108,10 @@ public class BlockChain {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-
         builder.append("Transactions={").append("\n");
-        for (Coin c : transactions) {
+        for (Coin c : transactions)
             builder.append('\t').append(c.value).append(" from ").append(c.from).append(" to ").append(c.to).append("\n");
-        }
         builder.append("}");
-
         return builder.toString();
     }
 

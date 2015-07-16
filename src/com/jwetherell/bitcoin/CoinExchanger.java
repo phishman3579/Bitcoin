@@ -154,7 +154,7 @@ public class CoinExchanger extends Peer {
     }
 
     @Override
-    protected void handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes) {
+    protected void handleValidation(Transaction trans) {
         blockChain.addTransaction(trans);       
     }
 
