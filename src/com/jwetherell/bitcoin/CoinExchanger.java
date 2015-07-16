@@ -9,13 +9,12 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.jwetherell.bitcoin.data_model.BlockChain;
 import com.jwetherell.bitcoin.data_model.Coin;
-import com.jwetherell.bitcoin.data_model.Wallet;
+import com.jwetherell.bitcoin.data_model.Transaction;
 
 /**
  * Class which handles the logic of maintaining the wallet including tracking serial numbers and public/private key encryption.
@@ -55,25 +54,28 @@ public class CoinExchanger extends Peer {
         }
     }
 
-    // Tracking serial numbers of peers
-    private final Map<String,Set<Long>>         recvSerials     = new ConcurrentHashMap<String,Set<Long>>();
     // Keep track of everyone's name -> public key
     private final Map<String,ByteBuffer>        publicKeys      = new ConcurrentHashMap<String,ByteBuffer>();
-    // My wallet
-    private final Wallet                        wallet;
+    // My BLockChain
+    private final BlockChain                    blockChain;
 
     public CoinExchanger(String name) {
         super(name);
-        this.wallet = new Wallet(name);
+        this.blockChain = new BlockChain();
     }
 
-    public Wallet getWallet() {
-        return wallet;
+    public BlockChain getBlockChain() {
+        return blockChain;
     }
 
     @Override
     protected byte[] getPublicKey() {
         return bPublicKey;
+    }
+
+    @Override
+    protected Transaction getTransaction(Coin coin) {
+        return blockChain.getNextTransaction(coin);
     }
 
     @Override
@@ -86,7 +88,8 @@ public class CoinExchanger extends Peer {
 
     public void sendCoin(String name, int value) {
         // Borrow the coin from our wallet until we receive an ACK
-        final Coin coin = wallet.borrowCoin(name,value);
+        final String msg = value+" from "+myName+" to "+name;
+        final Coin coin = new Coin(myName, name, msg, value);
         super.sendCoin(name,coin);
     }
 
@@ -127,22 +130,6 @@ public class CoinExchanger extends Peer {
             return Status.BAD_SIGNATURE;
         }
 
-        // Throw away duplicate coin requests
-        Set<Long> set = recvSerials.get(from);
-        if (set == null) {
-            set = new HashSet<Long>();
-            recvSerials.put(from, set);
-        }
-        final long serial = coin.getSerial();
-        if (set.contains(serial)) {
-            System.err.println("Not handling coin, it has a dup serial number. serial='"+coin.getSerial()+"' from='"+coin.from+"'");
-            return Status.DUP_SERIAL_NUM;
-        }
-
-        // Yey, our coin!
-        wallet.addCoin(coin);
-        set.add(serial);
-
         return Status.SUCCESS;
     }
 
@@ -157,10 +144,12 @@ public class CoinExchanger extends Peer {
             return Status.BAD_SIGNATURE;
         }
 
-        // The other peer ACK'd our transaction!
-        wallet.removeBorrowedCoin(coin);
-
         return Status.SUCCESS;
+    }
+
+    @Override
+    protected void handleTransaction(Transaction trans) {
+        blockChain.addTransaction(trans);
     }
 
     /**
@@ -169,7 +158,7 @@ public class CoinExchanger extends Peer {
     @Override
     public String toString() {
         final StringBuilder builder = new StringBuilder();
-        builder.append(super.toString()).append(" wallet={").append(wallet.toString()).append("}");
+        builder.append(super.toString()).append(" blockChain={").append(blockChain.toString()).append("}");
         return builder.toString();
     }
 }

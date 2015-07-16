@@ -11,32 +11,154 @@ import org.junit.Test;
 
 import com.jwetherell.bitcoin.CoinExchanger;
 import com.jwetherell.bitcoin.data_model.Coin;
+import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class CoinExchangerTest {
 
+    // This may need to vary depending on the machine
+    private static final int INIT_SLEEP     = 250;
+    private static final int BETWEEN_SENDS  = 25;
+
     @Test(timeout=1000)
-    public void testDupCoin() throws InterruptedException {
+    public void testBadSignature() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";
-        Coin c1 = new Coin(n1,n2,"Coinage.",10);
+        String n3 = "n3";
+        BadKeyCoinExchanger p1 = new BadKeyCoinExchanger(n1);
+        CoinExchanger p2 = new CoinExchanger(n2);
+        CoinExchanger p3 = new CoinExchanger(n3);
+
+        // Wait for everyone to initialize
+        Thread.sleep(INIT_SLEEP);
+
+        // Send coin (which'll be rejected for a bad signature)
+        p1.sendCoin(n2,10);
+        // p1=0, p2=0, p3=0
+
+        Thread.sleep(BETWEEN_SENDS);
+
+        p2.sendCoin(n3,2);
+        // p1=0, p2=-2, p3=2
+
+        Thread.yield();
+
+        while (p1.getBlockChain().getBalance(p1.getName())!=0 || p2.getBlockChain().getBalance(p2.getName())!=-2 || p3.getBlockChain().getBalance(p3.getName())!=2) {
+            Thread.yield();
+        }
+
+        p1.shutdown();
+        p2.shutdown();
+        p3.shutdown();
+
+        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
+
+        Assert.assertTrue(p1.getBlockChain().getBalance(p1.getName())==0);
+        Assert.assertTrue(p2.getBlockChain().getBalance(p2.getName())==-2);
+        Assert.assertTrue(p3.getBlockChain().getBalance(p3.getName())==2);
+    }
+
+    @Test(timeout=1000)
+    public void testCoinExchangers2() throws InterruptedException {
+        String n1 = "n1";
+        String n2 = "n2";
+        CoinExchanger p1 = new CoinExchanger(n1);
+        CoinExchanger p2 = new CoinExchanger(n2);
+
+        // Wait for everyone to initialize
+        Thread.sleep(INIT_SLEEP);
+
+        p1.sendCoin(n2, 3);
+        // p1=-3, p2=3
+
+        Thread.sleep(BETWEEN_SENDS);
+
+        p2.sendCoin(n1, 7);
+        // p1=4, p2=-7
+
+        Thread.yield();
+
+        while (p1.getBlockChain().getBalance(p1.getName())!=4 || p2.getBlockChain().getBalance(p2.getName())!=-4) {
+            Thread.yield();
+        }
+
+        p1.shutdown();
+        p2.shutdown();
+
+        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
+
+        Assert.assertTrue(p1.getBlockChain().getBalance(p1.getName())==4);
+        Assert.assertTrue(p2.getBlockChain().getBalance(p2.getName())==-4);
+    }
+
+    @Test(timeout=1000)
+    public void testCoinExchangers3() throws InterruptedException {
+        String n1 = "n1";
+        String n2 = "n2";
+        String n3 = "n3";
+        CoinExchanger p1 = new CoinExchanger(n1);
+        CoinExchanger p2 = new CoinExchanger(n2);
+        CoinExchanger p3 = new CoinExchanger(n3);
+
+        // Wait for everyone to initialize
+        Thread.sleep(INIT_SLEEP);
+
+        p1.sendCoin(n2, 3);
+        // p1=-3, p2=3, p3=0
+
+        Thread.sleep(BETWEEN_SENDS);
+
+        p2.sendCoin(n3, 7);
+        // p1=-3, p2=-4, p3=7
+
+        Thread.sleep(BETWEEN_SENDS);
+
+        p3.sendCoin(n1, 11);
+        // p1=8, p2=-4, p3=-4
+
+        Thread.yield();
+
+        while (p1.getBlockChain().getBalance(p1.getName())!=8 || p2.getBlockChain().getBalance(p2.getName())!=-4 || p3.getBlockChain().getBalance(p3.getName())!=-4) {
+            Thread.yield();
+        }
+
+        p1.shutdown();
+        p2.shutdown();
+        p3.shutdown();
+
+        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
+        Assert.assertTrue(p2.getBlockChain().equals(p3.getBlockChain()));
+
+        Assert.assertTrue(p1.getBlockChain().getBalance(p1.getName())==8);
+        Assert.assertTrue(p2.getBlockChain().getBalance(p2.getName())==-4);
+        Assert.assertTrue(p3.getBlockChain().getBalance(p3.getName())==-4);
+    }
+
+    @Test(timeout=1000)
+    public void testBashHashCoin() throws InterruptedException {
+        String n1 = "n1";
+        String n2 = "n2";
         DupCoinExchanger p1 = new DupCoinExchanger(n1);
         DupCoinExchanger p2 = new DupCoinExchanger(n2);
 
         // Wait for everyone to initialize
-        Thread.sleep(250);
+        Thread.sleep(INIT_SLEEP);
 
         // Send coin
-        p1.sendCoin(n2,c1);
+        p1.sendCoin(n2,10);
 
         Thread.yield();
 
-        while (p2.getWallet().getBalance()!=10) {
+        while (p1.getBlockChain().getBalance(p1.getName())!=-10 && p2.getBlockChain().getBalance(p2.getName())!=10) {
             Thread.yield();
         }
-        Assert.assertTrue(p2.getWallet().getBalance()==10);
+        Assert.assertTrue(p1.getBlockChain().getBalance(p1.getName())==-10);
+        Assert.assertTrue(p2.getBlockChain().getBalance(p2.getName())==10);
 
-        // This is a dup and should be dropped
-        p1.sendCoin(n2,c1); 
+        // This has a bad hash
+        final Coin coin = new Coin(n1, n2, "Please reject me!", 10);
+        final byte[] hash = "This is a VERY bad hash".getBytes();
+        Transaction trans = new Transaction(hash, coin);
+        p1.sendTransaction(trans);
 
         Thread.yield();
 
@@ -45,130 +167,16 @@ public class CoinExchangerTest {
 
         Thread.yield();
 
-        while (p2.getWallet().getBalance()!=30) {
-            Thread.yield();
-        }
-        Assert.assertTrue(p2.getWallet().getBalance()==30);
-
-        p1.shutdown();
-        p2.shutdown();
-    }
-
-    @Test(timeout=1000)
-    public void testBadSignature() throws InterruptedException {
-        String n1 = "n1";
-        String n2 = "n2";
-        String n3 = "n3";
-        BadKeyCoinExchanger p1 = new BadKeyCoinExchanger(n1);
-        p1.getWallet().addCoin(new Coin("me","you","Coinage.",10));
-        CoinExchanger p2 = new CoinExchanger(n2);
-        p2.getWallet().addCoin(new Coin("me","you","Coinage.",10));
-        CoinExchanger p3 = new CoinExchanger(n3);
-        p3.getWallet().addCoin(new Coin("me","you","Coinage.",10));
-
-        // Wait for everyone to initialize
-        Thread.sleep(250);
-
-        // Send coin (which'll be rejected for a bad signature)
-        p1.sendCoin(n2,10);
-        // p1=10, p2=10, p3=10
-
-        Thread.yield();
-
-        p2.sendCoin(n3,2);
-        // p1=10, p2=8, p3=12
-
-        Thread.yield();
-
-        while (p1.getWallet().getBalance()!=10 || p2.getWallet().getBalance()!=8 || p3.getWallet().getBalance()!=12) {
-            Thread.yield();
-        }
-        Assert.assertTrue(p1.getWallet().getBalance()==10);
-        Assert.assertTrue(p2.getWallet().getBalance()==8);
-        Assert.assertTrue(p3.getWallet().getBalance()==12);
-
-        p1.shutdown();
-        p2.shutdown();
-        p3.shutdown();
-    }
-
-    @Test(timeout=1000)
-    public void testCoinExchangers2() throws InterruptedException {
-        String n1 = "n1";
-        CoinExchanger p1 = new CoinExchanger(n1);
-        p1.getWallet().addCoin(new Coin("me","you","Coinage.",10));
-
-        Thread.yield();
-
-        String n2 = "n2";
-        CoinExchanger p2 = new CoinExchanger(n2);
-        p2.getWallet().addCoin(new Coin("me","you","Coinage.",20));
-
-        // Wait for everyone to initialize
-        Thread.sleep(250);
-
-        p1.sendCoin(n2, 3);
-        // p1=7, p2=23
-        p2.sendCoin(n1, 7);
-        // p1=14, p2=16
-
-        while (p1.getWallet().getBalance()!=14 || p2.getWallet().getBalance()!=16) {
+        while (p2.getBlockChain().getBalance(p2.getName())!=30) {
             Thread.yield();
         }
 
         p1.shutdown();
         p2.shutdown();
 
-        Assert.assertTrue(p1.getWallet().getPending()==0);
-        Assert.assertTrue(p2.getWallet().getPending()==0);
+        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
 
-        Assert.assertTrue(p1.getWallet().getBalance()==14);
-        Assert.assertTrue(p2.getWallet().getBalance()==16);
-    }
-
-    @Test(timeout=1000)
-    public void testCoinExchangers3() throws InterruptedException {
-        String n1 = "n1";
-        CoinExchanger p1 = new CoinExchanger(n1);
-        p1.getWallet().addCoin(new Coin("me","you","Coinage.",10));
-
-        Thread.yield();
-
-        String n2 = "n2";
-        CoinExchanger p2 = new CoinExchanger(n2);
-        p2.getWallet().addCoin(new Coin("me","you","Coinage.",20));
-
-        Thread.yield();
-
-        String n3 = "n3";
-        CoinExchanger p3 = new CoinExchanger(n3);
-        p3.getWallet().addCoin(new Coin("me","you","Coinage.",15));
-
-        // Wait for everyone to initialize
-        Thread.sleep(250);
-
-        p1.sendCoin(n2, 3);
-        // p1=7, p2=23, p3=15
-        p2.sendCoin(n3, 7);
-        // p1=7, p2=16, p3=22
-        p3.sendCoin(n1, 11);
-        // p1=18, p2=16, p3=11
-
-        while (p1.getWallet().getBalance()!=18 || p2.getWallet().getBalance()!=16 || p3.getWallet().getBalance()!=11) {
-            Thread.yield();
-        }
-
-        p1.shutdown();
-        p2.shutdown();
-        p3.shutdown();
-
-        Assert.assertTrue(p1.getWallet().getPending()==0);
-        Assert.assertTrue(p2.getWallet().getPending()==0);
-        Assert.assertTrue(p3.getWallet().getPending()==0);
-
-        Assert.assertTrue(p1.getWallet().getBalance()==18);
-        Assert.assertTrue(p2.getWallet().getBalance()==16);
-        Assert.assertTrue(p3.getWallet().getBalance()==11);
+        Assert.assertTrue(p2.getBlockChain().getBalance(p2.getName())==30);
     }
 
     private static class DupCoinExchanger extends CoinExchanger {
@@ -178,8 +186,8 @@ public class CoinExchangerTest {
         }
 
         /** Really only here to open up the method for JUnits **/
-        public void sendCoin(String name, Coin coin) {
-            super.sendCoin(name,coin);
+        protected void sendTransaction(Transaction trans) {
+            super.sendTransaction(trans);
         }
     }
 

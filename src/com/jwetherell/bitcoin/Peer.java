@@ -9,6 +9,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.jwetherell.bitcoin.data_model.Coin;
 import com.jwetherell.bitcoin.data_model.Data;
+import com.jwetherell.bitcoin.data_model.Transaction;
 import com.jwetherell.bitcoin.interfaces.Listener;
 import com.jwetherell.bitcoin.interfaces.Receiver;
 import com.jwetherell.bitcoin.networking.Multicast;
@@ -21,15 +22,16 @@ import com.jwetherell.bitcoin.networking.TCP;
  */
 public abstract class Peer {
 
-    protected static enum Status { NO_PUBLIC_KEY, BAD_SIGNATURE, DUP_SERIAL_NUM, SUCCESS };
+    protected static enum Status { NO_PUBLIC_KEY, BAD_SIGNATURE, SUCCESS };
 
-    protected static final boolean                DEBUG           = Boolean.getBoolean("debug");
+    protected static final boolean                DEBUG         = Boolean.getBoolean("debug");
 
-    private static final int                    HEADER_LENGTH   = 8;
-    private static final String                 WHOIS_MSG       = "Who is  ";
-    private static final String                 IAM_MSG         = "I am    ";
-    private static final String                 COIN_MSG        = "Coin    ";
-    private static final String                 COIN_ACK        = "Coin ACK";
+    private static final int                    HEADER_LENGTH   = 12;
+    private static final String                 WHOIS_MSG       = "Who is      ";
+    private static final String                 IAM_MSG         = "I am        ";
+    private static final String                 COIN_MSG        = "Coin        ";
+    private static final String                 COIN_ACK        = "Coin ACK    ";
+    private static final String                 TRANSACTION     = "Transaction ";
 
     private static final int                    NAME_LENGTH     = 4;
 
@@ -46,21 +48,23 @@ public abstract class Peer {
         public void onMessage(Receiver recv) {
             Data d = recv.getQueue().poll();
             while (d != null) {
-                final byte[] data = d.data.array();
-                final String string = new String(data);
+                final byte[] bytes = d.data.array();
+                final String string = new String(bytes);
                 String hdr = string.substring(0, HEADER_LENGTH);
                 if (DEBUG) 
                     System.out.println("Listener ("+myName+") received '"+hdr+"' msg");
                 if (hdr.equals(WHOIS_MSG)) {
-                    handleWhois(data,d);
+                    handleWhois(bytes,d);
                 } else if (hdr.equals(IAM_MSG)) {
-                    String n = handleIam(data,d);
+                    String n = handleIam(bytes,d);
                     processCoinsToSend(n);
                     processCoinsToRecv(n);
                 } else if (hdr.equals(COIN_MSG)) {
-                    handleCoin(data,d);
+                    handleCoin(bytes,d);
                 } else if (hdr.equals(COIN_ACK)) {
-                    handleCoinAck(data,d);
+                    handleCoinAck(bytes,d);
+                } else if (hdr.equals(TRANSACTION)) {
+                    handleTransaction(bytes,d);
                 } else {
                     System.err.println("Cannot handle msg. hdr="+hdr);
                 }
@@ -135,6 +139,10 @@ public abstract class Peer {
 
         multiRecv.interrupt();
         multiRecv.join();
+    }
+
+    public String getName() {
+        return myName;
     }
 
     /** Get encoded public key **/
@@ -254,11 +262,33 @@ public abstract class Peer {
             addCoinToRecv(true, from, coin, data);
             sendWhois(from);
             return;
+        } else if (knownPublicKey != Status.SUCCESS) {
+            return;
         }
+
+        final Transaction trans = getTransaction(coin);
+        sendTransaction(trans);
     }
 
     /** What do you want to do now that you received an ACK for a sent coin, return false if the public key is unknown **/
     protected abstract Status handleCoinAck(String from, Coin coin, byte[] sig, byte[] bytes);
+
+    /** Create a transaction given the this coin **/
+    protected abstract Transaction getTransaction(Coin coin);
+    
+    protected void sendTransaction(Transaction trans) {
+        final byte[] msg = getTransactionMsg(trans);
+        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), NO_SIG, msg);
+        sendMultiQueue.add(data);
+    }
+
+    private void handleTransaction(byte[] bytes, Data data) {
+        final Transaction trans = parseTransactionMsg(bytes);
+        handleTransaction(trans);
+    }
+
+    /** What do you want to do now that you received an transaction **/
+    protected abstract void handleTransaction(Transaction trans);
 
     private void addCoinToSend(boolean isAck, String to, Coin c) {
         final Queued q = new Queued(isAck, c, null);
@@ -439,6 +469,29 @@ public abstract class Peer {
         buffer.get(bMsgType);
 
         final Coin coin = new Coin();
+        coin.fromBuffer(buffer);
+
+        return coin;
+    }
+
+    public static final byte[] getTransactionMsg(Transaction trans) {
+        final byte[] msg = new byte[HEADER_LENGTH + trans.getBufferLength()];
+        final ByteBuffer coinBuffer = ByteBuffer.allocate(trans.getBufferLength());
+        trans.toBuffer(coinBuffer);
+        final ByteBuffer buffer = ByteBuffer.wrap(msg);
+        buffer.put(TRANSACTION.getBytes());
+
+        buffer.put(coinBuffer);
+
+        return msg;
+    }
+
+    public static final Transaction parseTransactionMsg(byte[] bytes) {
+        final ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        final byte [] bMsgType = new byte[HEADER_LENGTH];
+        buffer.get(bMsgType);
+
+        final Transaction coin = new Transaction();
         coin.fromBuffer(buffer);
 
         return coin;
