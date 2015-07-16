@@ -21,7 +21,9 @@ import com.jwetherell.bitcoin.networking.TCP;
  */
 public abstract class Peer {
 
-    private static final boolean                DEBUG           = Boolean.getBoolean("debug");
+    protected static enum Status { NO_PUBLIC_KEY, BAD_SIGNATURE, DUP_SERIAL_NUM, SUCCESS };
+
+    protected static final boolean                DEBUG           = Boolean.getBoolean("debug");
 
     private static final int                    HEADER_LENGTH   = 8;
     private static final String                 WHOIS_MSG       = "Who is  ";
@@ -205,10 +207,12 @@ public abstract class Peer {
 
     private void handleCoin(String from, Coin coin, Data data) {
         // Let the app logic do what it needs to
-        boolean knownPublicKey = handleCoin(from, coin, data.signature.array(), data.data.array());
-        if (!knownPublicKey) {
+        Status knownPublicKey = handleCoin(from, coin, data.signature.array(), data.data.array());
+        if (knownPublicKey == Status.NO_PUBLIC_KEY) {
             addCoinToRecv(false, from, coin, data);
             sendWhois(from);
+            return;
+        } else if (knownPublicKey != Status.SUCCESS) {
             return;
         }
 
@@ -220,7 +224,7 @@ public abstract class Peer {
     protected abstract boolean verifyMsg(byte[] publicKey, byte[] signature, byte[] bytes);
 
     /** What do you want to do now that you have received a coin, return false if the public key is unknown **/
-    protected abstract boolean handleCoin(String from, Coin coin, byte[] sig, byte[] bytes);
+    protected abstract Status handleCoin(String from, Coin coin, byte[] sig, byte[] bytes);
 
     private void ackCoin(String to, Coin coin) {
         final Data d = peers.get(to);
@@ -245,8 +249,8 @@ public abstract class Peer {
 
     private void handleCoinAck(String from, Coin coin, Data data) {
         // Let the app logic do what it needs to
-        boolean knownPublicKey = handleCoinAck(from, coin, data.signature.array(), data.data.array());
-        if (!knownPublicKey) {
+        Status knownPublicKey = handleCoinAck(from, coin, data.signature.array(), data.data.array());
+        if (knownPublicKey == Status.NO_PUBLIC_KEY) {
             addCoinToRecv(true, from, coin, data);
             sendWhois(from);
             return;
@@ -254,7 +258,7 @@ public abstract class Peer {
     }
 
     /** What do you want to do now that you received an ACK for a sent coin, return false if the public key is unknown **/
-    protected abstract boolean handleCoinAck(String from, Coin coin, byte[] sig, byte[] bytes);
+    protected abstract Status handleCoinAck(String from, Coin coin, byte[] sig, byte[] bytes);
 
     private void addCoinToSend(boolean isAck, String to, Coin c) {
         final Queued q = new Queued(isAck, c, null);

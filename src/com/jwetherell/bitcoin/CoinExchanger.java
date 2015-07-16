@@ -117,14 +117,14 @@ public class CoinExchanger extends Peer {
     }
 
     @Override
-    protected boolean handleCoin(String from, Coin coin, byte[] signature, byte[] bytes) {
+    protected Status handleCoin(String from, Coin coin, byte[] signature, byte[] bytes) {
         if (!publicKeys.containsKey(from))
-            return false;
+            return Status.NO_PUBLIC_KEY;
 
         final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, signature, bytes)) {
-            System.out.println("handleCoin() coin NOT verified. coin="+coin.toString());
-            return true;
+            System.err.println("handleCoin() coin NOT verified. coin="+coin.toString());
+            return Status.BAD_SIGNATURE;
         }
 
         // Throw away duplicate coin requests
@@ -136,31 +136,31 @@ public class CoinExchanger extends Peer {
         final long serial = coin.getSerial();
         if (set.contains(serial)) {
             System.err.println("Not handling coin, it has a dup serial number. serial='"+coin.getSerial()+"' from='"+coin.from+"'");
-            return true;
+            return Status.DUP_SERIAL_NUM;
         }
 
         // Yey, our coin!
         wallet.addCoin(coin);
         set.add(serial);
 
-        return true;
+        return Status.SUCCESS;
     }
 
     @Override
-    protected boolean handleCoinAck(String from, Coin coin, byte[] signature, byte[] bytes) {
+    protected Status handleCoinAck(String from, Coin coin, byte[] signature, byte[] bytes) {
         if (!publicKeys.containsKey(from))
-            return false;
+            return Status.NO_PUBLIC_KEY;
 
         final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, signature, bytes)) {
-            System.out.println("handleCoinAck() coin NOT verified. coin="+coin.toString());
-            return true;
+            System.err.println("handleCoinAck() coin NOT verified. coin="+coin.toString());
+            return Status.BAD_SIGNATURE;
         }
 
         // The other peer ACK'd our transaction!
         wallet.removeBorrowedCoin(coin);
 
-        return true;
+        return Status.SUCCESS;
     }
 
     /**

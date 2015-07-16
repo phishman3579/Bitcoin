@@ -38,7 +38,7 @@ public class Wallet {
     public synchronized void returnBorrowedCoin(Coin coin) {
         pending -= coin.value;
         coin.to = name;
-        final String msg = "Returning borrowed "+coin.value+" from "+name+"'s wallet\n"+toString();
+        final String msg = "Returning borrowed (pending) "+coin.value+" from "+name+"'s wallet\n"+toString();
         System.out.println(msg);
     }
 
@@ -51,7 +51,7 @@ public class Wallet {
         c.value *= -1; // since it's a remove operation
         transactions.add(c);
 
-        final String msg = "Removed borrowed "+coin.value+" from "+name+"'s wallet\n"+toString();
+        final String msg = "Removed borrowed (pending) "+coin.value+" from "+name+"'s wallet\n"+toString();
         System.out.println(msg);
     }
 
