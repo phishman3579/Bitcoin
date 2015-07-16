@@ -8,6 +8,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class BlockChain {
 
+    public static enum HashStatus { BAD_KEY, BAD_HASH, SUCCESS };
+
     private final List<Coin>                transactions    = new CopyOnWriteArrayList<Coin>();
 
     // Generate the genesis
@@ -35,9 +37,8 @@ public class BlockChain {
         return (new Transaction(nextHash, coin));
     }
 
-    public synchronized void addTransaction(Transaction trans) {
+    public synchronized HashStatus checkTransaction(Transaction trans) {
         final Coin coin = trans.getCoin();
-
         final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
         coin.toBuffer(buffer);
         final byte[] bytes = buffer.array();
@@ -46,11 +47,27 @@ public class BlockChain {
         final byte[] incomingHash = trans.getHash();
         if (!(Arrays.equals(incomingHash, nextHash))) {
             System.err.println("Invalid hash on transaction.");
-            return;
+            return HashStatus.BAD_HASH;
         }
+
+        return HashStatus.SUCCESS;
+    }
+
+    public synchronized HashStatus addTransaction(Transaction trans) {
+        final HashStatus status = checkTransaction(trans);
+        if (status != HashStatus.SUCCESS) {
+            return status;
+        }
+
+        final Coin coin = trans.getCoin();
+        final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
+        coin.toBuffer(buffer);
+        final byte[] bytes = buffer.array();
+        final byte[] nextHash = getNextHash(hash, bytes);
 
         hash = nextHash;
         transactions.add(coin);
+        return HashStatus.SUCCESS;
     }
 
     public synchronized long getBalance(String name) {

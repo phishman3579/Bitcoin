@@ -5,8 +5,10 @@ import java.util.Arrays;
 
 public class Transaction {
 
-    private static final int    LENGTH_LENGTH = 4;
+    private static final int    BOOLEAN_LENGTH = 2;
+    private static final int    LENGTH_LENGTH   = 4;
 
+    private boolean             isValid         = false;
     private Coin                coin;
     private byte[]              hash;
 
@@ -20,6 +22,14 @@ public class Transaction {
         this.coin = coin;
     }
 
+    public boolean getIsValid() {
+        return isValid;
+    }
+
+    public void setIsValid(boolean value) {
+        this.isValid = value;
+    }
+
     public Coin getCoin() {
         return coin;
     }
@@ -29,21 +39,32 @@ public class Transaction {
     }
 
     public int getBufferLength() {
-        return LENGTH_LENGTH + hash.length + 
-               coin.getBufferLength();
+        return  BOOLEAN_LENGTH + 
+                LENGTH_LENGTH + hash.length + 
+                coin.getBufferLength();
     }
 
     public void toBuffer(ByteBuffer buffer) {
+        buffer.putChar(getBoolean(isValid));
         buffer.putInt(hash.length);
         buffer.put(hash);
         coin.toBuffer(buffer);
     }
 
     public void fromBuffer(ByteBuffer buffer) {
+        isValid = parseBoolean(buffer.getChar());
         final int length = buffer.getInt();
         hash = new byte[length];
         buffer.get(hash);
         coin.fromBuffer(buffer);
+    }
+
+    private static final char getBoolean(boolean bool) {
+        return (bool?'T':'F');
+    }
+
+    private static final boolean parseBoolean(char bool) {
+        return (bool=='T'?true:false);
     }
 
     /**

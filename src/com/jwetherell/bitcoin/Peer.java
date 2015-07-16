@@ -7,6 +7,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import com.jwetherell.bitcoin.data_model.BlockChain.HashStatus;
 import com.jwetherell.bitcoin.data_model.Coin;
 import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.Transaction;
@@ -22,9 +23,9 @@ import com.jwetherell.bitcoin.networking.TCP;
  */
 public abstract class Peer {
 
-    protected static enum Status { NO_PUBLIC_KEY, BAD_SIGNATURE, SUCCESS };
+    protected static enum KeyStatus { NO_PUBLIC_KEY, BAD_SIGNATURE, SUCCESS };
 
-    protected static final boolean                DEBUG         = Boolean.getBoolean("debug");
+    protected static final boolean              DEBUG           = Boolean.getBoolean("debug");
 
     private static final int                    HEADER_LENGTH   = 12;
     private static final String                 WHOIS_MSG       = "Who is      ";
@@ -32,6 +33,7 @@ public abstract class Peer {
     private static final String                 COIN_MSG        = "Coin        ";
     private static final String                 COIN_ACK        = "Coin ACK    ";
     private static final String                 TRANSACTION     = "Transaction ";
+    private static final String                 VALIDATION      = "Validate    ";
 
     private static final int                    NAME_LENGTH     = 4;
 
@@ -65,6 +67,8 @@ public abstract class Peer {
                     handleCoinAck(bytes,d);
                 } else if (hdr.equals(TRANSACTION)) {
                     handleTransaction(bytes,d);
+                } else if (hdr.equals(VALIDATION)) {
+                    handleValidation(bytes,d);
                 } else {
                     System.err.println("Cannot handle msg. hdr="+hdr);
                 }
@@ -215,12 +219,12 @@ public abstract class Peer {
 
     private void handleCoin(String from, Coin coin, Data data) {
         // Let the app logic do what it needs to
-        Status knownPublicKey = handleCoin(from, coin, data.signature.array(), data.data.array());
-        if (knownPublicKey == Status.NO_PUBLIC_KEY) {
+        KeyStatus knownPublicKey = handleCoin(from, coin, data.signature.array(), data.data.array());
+        if (knownPublicKey == KeyStatus.NO_PUBLIC_KEY) {
             addCoinToRecv(false, from, coin, data);
             sendWhois(from);
             return;
-        } else if (knownPublicKey != Status.SUCCESS) {
+        } else if (knownPublicKey != KeyStatus.SUCCESS) {
             return;
         }
 
@@ -232,7 +236,7 @@ public abstract class Peer {
     protected abstract boolean verifyMsg(byte[] publicKey, byte[] signature, byte[] bytes);
 
     /** What do you want to do now that you have received a coin, return false if the public key is unknown **/
-    protected abstract Status handleCoin(String from, Coin coin, byte[] sig, byte[] bytes);
+    protected abstract KeyStatus handleCoin(String from, Coin coin, byte[] sig, byte[] bytes);
 
     private void ackCoin(String to, Coin coin) {
         final Data d = peers.get(to);
@@ -257,12 +261,12 @@ public abstract class Peer {
 
     private void handleCoinAck(String from, Coin coin, Data data) {
         // Let the app logic do what it needs to
-        Status knownPublicKey = handleCoinAck(from, coin, data.signature.array(), data.data.array());
-        if (knownPublicKey == Status.NO_PUBLIC_KEY) {
+        KeyStatus knownPublicKey = handleCoinAck(from, coin, data.signature.array(), data.data.array());
+        if (knownPublicKey == KeyStatus.NO_PUBLIC_KEY) {
             addCoinToRecv(true, from, coin, data);
             sendWhois(from);
             return;
-        } else if (knownPublicKey != Status.SUCCESS) {
+        } else if (knownPublicKey != KeyStatus.SUCCESS) {
             return;
         }
 
@@ -271,24 +275,64 @@ public abstract class Peer {
     }
 
     /** What do you want to do now that you received an ACK for a sent coin, return false if the public key is unknown **/
-    protected abstract Status handleCoinAck(String from, Coin coin, byte[] sig, byte[] bytes);
+    protected abstract KeyStatus handleCoinAck(String from, Coin coin, byte[] sig, byte[] bytes);
 
     /** Create a transaction given the this coin **/
     protected abstract Transaction getTransaction(Coin coin);
     
     protected void sendTransaction(Transaction trans) {
         final byte[] msg = getTransactionMsg(trans);
-        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), NO_SIG, msg);
+        final byte[] sig = signMsg(msg);
+        // TODO: Check to TCP
+        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), sig, msg);
         sendMultiQueue.add(data);
     }
 
     private void handleTransaction(byte[] bytes, Data data) {
         final Transaction trans = parseTransactionMsg(bytes);
-        handleTransaction(trans);
+        HashStatus status = checkTransaction(trans.getCoin().from, trans, data.signature.array(), data.data.array());
+        if (status != HashStatus.SUCCESS)
+            return;
+
+        // Hash looks good to me, ask everyone else
+        sendValidation(trans);
+    }
+
+    protected void sendValidation(Transaction trans) {
+        final byte[] msg = getValidationMsg(trans);
+        final byte[] sig = signMsg(msg);
+        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), sig, msg);
+        sendMultiQueue.add(data);
+    }
+
+    private void handleValidation(byte[] bytes, Data data) {
+        final Transaction trans = parseValidationMsg(bytes);
+        if (trans.getIsValid()) {
+            // Yey! we got a validation from the community
+            handleValidation(trans.getCoin().from, trans, data.signature.array(), data.data.array());
+
+            return;
+        }
+
+        // Don't validate my own transaction
+        final String from = trans.getCoin().from;
+        if (from.equals(myName))
+            return;
+
+        HashStatus status = checkTransaction(from, trans, data.signature.array(), data.data.array());
+        if (status != HashStatus.SUCCESS)
+            return;
+
+        // Hash looks good to me, ask everyone else
+        trans.setIsValid(true);
+        sendValidation(trans);
     }
 
     /** What do you want to do now that you received an transaction **/
-    protected abstract void handleTransaction(Transaction trans);
+    protected abstract HashStatus checkTransaction(String from, Transaction trans, byte[] signature, byte[] bytes);
+
+    /** What do you want to do now that you received a valid transaction **/
+    protected abstract void handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes);
 
     private void addCoinToSend(boolean isAck, String to, Coin c) {
         final Queued q = new Queued(isAck, c, null);
@@ -487,6 +531,29 @@ public abstract class Peer {
     }
 
     public static final Transaction parseTransactionMsg(byte[] bytes) {
+        final ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        final byte [] bMsgType = new byte[HEADER_LENGTH];
+        buffer.get(bMsgType);
+
+        final Transaction coin = new Transaction();
+        coin.fromBuffer(buffer);
+
+        return coin;
+    }
+
+    public static final byte[] getValidationMsg(Transaction trans) {
+        final byte[] msg = new byte[HEADER_LENGTH + trans.getBufferLength()];
+        final ByteBuffer coinBuffer = ByteBuffer.allocate(trans.getBufferLength());
+        trans.toBuffer(coinBuffer);
+        final ByteBuffer buffer = ByteBuffer.wrap(msg);
+        buffer.put(VALIDATION.getBytes());
+
+        buffer.put(coinBuffer);
+
+        return msg;
+    }
+
+    public static final Transaction parseValidationMsg(byte[] bytes) {
         final ByteBuffer buffer = ByteBuffer.wrap(bytes);
         final byte [] bMsgType = new byte[HEADER_LENGTH];
         buffer.get(bMsgType);

@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.jwetherell.bitcoin.data_model.BlockChain;
+import com.jwetherell.bitcoin.data_model.BlockChain.HashStatus;
 import com.jwetherell.bitcoin.data_model.Coin;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
@@ -120,36 +121,41 @@ public class CoinExchanger extends Peer {
     }
 
     @Override
-    protected Status handleCoin(String from, Coin coin, byte[] signature, byte[] bytes) {
+    protected KeyStatus handleCoin(String from, Coin coin, byte[] signature, byte[] bytes) {
         if (!publicKeys.containsKey(from))
-            return Status.NO_PUBLIC_KEY;
+            return KeyStatus.NO_PUBLIC_KEY;
 
         final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, signature, bytes)) {
             System.err.println("handleCoin() coin NOT verified. coin="+coin.toString());
-            return Status.BAD_SIGNATURE;
+            return KeyStatus.BAD_SIGNATURE;
         }
 
-        return Status.SUCCESS;
+        return KeyStatus.SUCCESS;
     }
 
     @Override
-    protected Status handleCoinAck(String from, Coin coin, byte[] signature, byte[] bytes) {
+    protected KeyStatus handleCoinAck(String from, Coin coin, byte[] signature, byte[] bytes) {
         if (!publicKeys.containsKey(from))
-            return Status.NO_PUBLIC_KEY;
+            return KeyStatus.NO_PUBLIC_KEY;
 
         final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, signature, bytes)) {
             System.err.println("handleCoinAck() coin NOT verified. coin="+coin.toString());
-            return Status.BAD_SIGNATURE;
+            return KeyStatus.BAD_SIGNATURE;
         }
 
-        return Status.SUCCESS;
+        return KeyStatus.SUCCESS;
     }
 
     @Override
-    protected void handleTransaction(Transaction trans) {
-        blockChain.addTransaction(trans);
+    protected HashStatus checkTransaction(String from, Transaction trans, byte[] signature, byte[] bytes) {
+        return blockChain.checkTransaction(trans);       
+    }
+
+    @Override
+    protected void handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes) {
+        blockChain.addTransaction(trans);       
     }
 
     /**
