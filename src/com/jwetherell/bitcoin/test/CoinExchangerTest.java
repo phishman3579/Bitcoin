@@ -8,7 +8,47 @@ import com.jwetherell.bitcoin.data_model.Coin;
 
 public class CoinExchangerTest {
 
-    @Test//(timeout=10000)
+    @Test(timeout=1000)
+    public void testDupCoin() throws InterruptedException {
+        String n1 = "n1";
+        String n2 = "n2";
+        Coin c1 = new Coin(n1,n2,"Coinage.",10);
+        MyCoinExchanger p1 = new MyCoinExchanger(n1);
+        MyCoinExchanger p2 = new MyCoinExchanger(n2);
+
+        // Wait for everyone to initialize
+        Thread.sleep(250);
+
+        // Send coin
+        p1.sendCoin(n2,c1);
+
+        Thread.yield();
+
+        while (p2.getWallet().getBalance()!=10) {
+            Thread.yield();
+        }
+        Assert.assertTrue(p2.getWallet().getBalance()==10);
+
+        // This is a dup and should be dropped
+        p1.sendCoin(n2,c1); 
+
+        Thread.yield();
+
+        // This should be accepted
+        p1.sendCoin(n2,20);
+
+        Thread.yield();
+
+        while (p2.getWallet().getBalance()!=30) {
+            Thread.yield();
+        }
+        Assert.assertTrue(p2.getWallet().getBalance()==30);
+
+        p1.shutdown();
+        p2.shutdown();
+    }
+
+    @Test//(timeout=1000)
     public void testCoinExchangers() throws InterruptedException {
         String n1 = "n1";
         CoinExchanger p1 = new CoinExchanger(n1);
@@ -53,44 +93,39 @@ public class CoinExchangerTest {
         Assert.assertTrue(p3.getWallet().getBalance()==11);
     }
 
-    @Test(timeout=10000)
-    public void testDupCoin() throws InterruptedException {
+
+    @Test//(timeout=10000)
+    public void testCoinExchangers2() throws InterruptedException {
         String n1 = "n1";
+        CoinExchanger p1 = new CoinExchanger(n1);
+        p1.getWallet().addCoin(new Coin("me","you","Coinage.",10));
+
+        Thread.yield();
+
         String n2 = "n2";
-        Coin c1 = new Coin(n1,n2,"Coinage.",10);
-        MyCoinExchanger p1 = new MyCoinExchanger(n1);
-        MyCoinExchanger p2 = new MyCoinExchanger(n2);
+        CoinExchanger p2 = new CoinExchanger(n2);
+        p2.getWallet().addCoin(new Coin("me","you","Coinage.",20));
 
         // Wait for everyone to initialize
         Thread.sleep(250);
 
-        // Send coin
-        p1.sendCoin(n2,c1);
+        p1.sendCoin(n2, 3);
+        // p1=7, p2=23
+        p2.sendCoin(n1, 7);
+        // p1=14, p2=16
 
-        Thread.yield();
-
-        while (p2.getWallet().getBalance()!=10) {
+        while (p1.getWallet().getBalance()!=14 || p2.getWallet().getBalance()!=16) {
             Thread.yield();
         }
-        Assert.assertTrue(p2.getWallet().getBalance()==10);
-
-        // This is a dup and should be dropped
-        p1.sendCoin(n2,c1); 
-
-        Thread.yield();
-
-        // This should be accepted
-        p1.sendCoin(n2,20);
-
-        Thread.yield();
-
-        while (p2.getWallet().getBalance()!=30) {
-            Thread.yield();
-        }
-        Assert.assertTrue(p2.getWallet().getBalance()==30);
 
         p1.shutdown();
         p2.shutdown();
+
+        Assert.assertTrue(p1.getWallet().getPending()==0);
+        Assert.assertTrue(p2.getWallet().getPending()==0);
+
+        Assert.assertTrue(p1.getWallet().getBalance()==14);
+        Assert.assertTrue(p2.getWallet().getBalance()==16);
     }
 
     private static class MyCoinExchanger extends CoinExchanger {

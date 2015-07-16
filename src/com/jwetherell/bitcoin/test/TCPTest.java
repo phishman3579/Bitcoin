@@ -17,7 +17,6 @@ public class TCPTest {
 
     @Test
     public void test() throws InterruptedException {
-        final byte[] key = "key".getBytes();
         final byte[] sig = "sig".getBytes();
         final byte[] toSend = "Hello world.".getBytes();
         final Listener listener = new Listener() {
@@ -50,7 +49,7 @@ public class TCPTest {
         // Wait for everyone to initialize
         Thread.sleep(250);
 
-        final Data data = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), sig, key, toSend);
+        final Data data = new Data(recv.getHost(), recv.getPort(), recv.getHost(), recv.getPort(), sig, toSend);
         send.getQueue().add(data);
 
         // Wait for threads to finish
@@ -59,7 +58,6 @@ public class TCPTest {
     }
 
     public static void main(String[] args) throws Exception {
-        final byte[] key = "key".getBytes();
         final byte[] sig = "sig".getBytes();
         final byte[] toSend = "Hello world.".getBytes();
         final Listener listener = new Listener() {
@@ -87,7 +85,7 @@ public class TCPTest {
             } else if (toStart.equals(SENDER)) {
                 final TCP.Peer.RunnableSend send = new TCP.Peer.RunnableSend();
                 Queue<Data> q = send.getQueue();
-                final Data data = new Data(TCP.LOCAL, TCP.port, TCP.LOCAL, TCP.port, sig, key, toSend);
+                final Data data = new Data(TCP.LOCAL, TCP.port, TCP.LOCAL, TCP.port, sig, toSend);
                 q.add(data);
                 final Thread s = new Thread(send);
                 s.start();

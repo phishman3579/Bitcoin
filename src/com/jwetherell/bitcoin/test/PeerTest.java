@@ -1,5 +1,7 @@
 package com.jwetherell.bitcoin.test;
 
+import java.util.Arrays;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -10,11 +12,14 @@ public class PeerTest {
 
     @Test
     public void testHello() {
+        final byte[] key = "key".getBytes();
         final String hello = "hello";
-        final byte[] p1 = Peer.getIamMsg(hello);
-        final String result = Peer.parseIamMsg(p1);
+        final byte[] p1 = Peer.getIamMsg(hello,key);
+        final String h = Peer.parseIamMsgForName(p1);
+        final byte[] k = Peer.parseIamMsgForKey(p1);
 
-        Assert.assertTrue(hello.equals(result));
+        Assert.assertTrue(hello.equals(h));
+        Assert.assertTrue(Arrays.equals(key, k));
     }
 
     @Test

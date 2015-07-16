@@ -1,17 +1,12 @@
 package com.jwetherell.bitcoin;
 
-import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
-import java.security.SignatureException;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.HashSet;
 import java.util.Map;
@@ -52,11 +47,7 @@ public class CoinExchanger extends Peer {
             bPublicKey = publicKey.getEncoded();
 
             keyFactory = KeyFactory.getInstance("DSA", "SUN");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchProviderException e) {
-            throw new RuntimeException(e);
-        } catch (InvalidKeyException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
@@ -92,7 +83,7 @@ public class CoinExchanger extends Peer {
         try {
             enc.update(bytes);
             signed = enc.sign();
-        } catch (SignatureException e) {
+        } catch (Exception e) {
             System.err.println("Could not encode msg. "+e);
         }
         return signed;
@@ -106,11 +97,7 @@ public class CoinExchanger extends Peer {
             dec.initVerify(key);
             dec.update(bytes);
             verified = dec.verify(signature);
-        } catch (SignatureException e) {
-            System.err.println("Could not decode msg. "+e);
-        } catch (InvalidKeyException e) {
-            System.err.println("Could not decode msg. "+e);
-        } catch (InvalidKeySpecException e) {
+        } catch (Exception e) {
             System.err.println("Could not decode msg. "+e);
         }
         return verified;

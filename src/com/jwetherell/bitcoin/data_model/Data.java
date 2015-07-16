@@ -13,13 +13,12 @@ public class Data {
     public int                  sourcePort;
     public InetAddress          destAddr;
     public int                  destPort;
-    public ByteBuffer           publicKey;
     public ByteBuffer           signature;
     public ByteBuffer           data;
 
     public Data() { }
 
-    public Data(String sourceAddr, int sourcePort, String destAddr, int destPort, byte[] publicKey, byte[] signature, byte[] bytes) {
+    public Data(String sourceAddr, int sourcePort, String destAddr, int destPort, byte[] signature, byte[] bytes) {
         try {
             this.sourceAddr = InetAddress.getByName(sourceAddr);
             this.destAddr = InetAddress.getByName(destAddr);
@@ -28,10 +27,6 @@ public class Data {
         }
         this.sourcePort = sourcePort;
         this.destPort = destPort;
-
-        this.publicKey = ByteBuffer.allocate(publicKey.length);
-        this.publicKey.put(publicKey);
-        this.publicKey.flip();
 
         this.signature = ByteBuffer.allocate(signature.length);
         this.signature.put(signature);
@@ -47,7 +42,6 @@ public class Data {
                 LENGTH_LENGTH + String.valueOf(sourcePort).getBytes().length + 
                 LENGTH_LENGTH + destAddr.getHostAddress().getBytes().length + 
                 LENGTH_LENGTH + String.valueOf(destPort).getBytes().length + 
-                LENGTH_LENGTH + publicKey.limit() +
                 LENGTH_LENGTH + signature.limit() +
                 LENGTH_LENGTH + data.limit();
     }
@@ -76,10 +70,6 @@ public class Data {
             buffer.putInt(pLength);
             buffer.put(pBytes);
         }
-
-        // public key
-        buffer.putInt(publicKey.limit());
-        buffer.put(publicKey);
 
         // Sig
         buffer.putInt(signature.limit());
@@ -130,13 +120,6 @@ public class Data {
         }
 
         // Sig
-        final int pLength = buffer.getInt();
-        final byte[] pBytes = new byte[pLength];
-        buffer.get(pBytes, 0, pLength);
-        this.publicKey = ByteBuffer.allocate(pBytes.length);
-        this.publicKey.put(pBytes);
-
-        // Sig
         final int sLength = buffer.getInt();
         final byte[] sBytes = new byte[sLength];
         buffer.get(sBytes, 0, sLength);
@@ -168,8 +151,6 @@ public class Data {
         if (!(destAddr.equals(d.destAddr)))
             return false;
         if (destPort != d.destPort)
-            return false;
-        if (!(Arrays.equals(this.publicKey.array(), d.publicKey.array())))
             return false;
         if (!(Arrays.equals(this.signature.array(), d.signature.array())))
             return false;
