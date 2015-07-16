@@ -46,7 +46,7 @@ public abstract class Peer {
                 final String string = new String(data);
                 String hdr = string.substring(0, HEADER_LENGTH);
                 if (DEBUG) 
-                    System.out.println("Listener ("+name+") received '"+hdr+"' msg");
+                    System.out.println("Listener ("+myName+") received '"+hdr+"' msg");
                 if (hdr.equals(WHOIS_MSG)) {
                     handleWhois(data,d);
                 } else if (hdr.equals(IAM_MSG)) {
@@ -79,10 +79,8 @@ public abstract class Peer {
     // Pending msgs
     private final Map<String,List<Coin>>        coinsToSend     = new ConcurrentHashMap<String,List<Coin>>();
     private final Map<String,List<Coin>>        coinAcksToSend  = new ConcurrentHashMap<String,List<Coin>>();
-    private final Map<String,List<Coin>>        coinsToRecv     = new ConcurrentHashMap<String,List<Coin>>();
-    private final Map<String,List<Data>>        dataToRecv     = new ConcurrentHashMap<String,List<Data>>();
-    private final Map<String,List<Coin>>        coinAcksToRecv  = new ConcurrentHashMap<String,List<Coin>>();
-    private final Map<String,List<Data>>        dataAcksToRecv  = new ConcurrentHashMap<String,List<Data>>();
+    private final Map<String,List<Queued>>      coinsToRecv     = new ConcurrentHashMap<String,List<Queued>>();
+    private final Map<String,List<Queued>>      coinAcksToRecv  = new ConcurrentHashMap<String,List<Queued>>();
 
     private final Thread                        tcpSend;
     private final Thread                        tcpRecv;
@@ -91,10 +89,10 @@ public abstract class Peer {
     private final Queue<Data>                   sendTcpQueue;
     private final Queue<Data>                   sendMultiQueue;
 
-    protected final String                      name;
+    protected final String                      myName;
 
     protected Peer(String name) {
-        this.name = name;
+        this.myName = name;
 
         // Senders
 
@@ -142,8 +140,8 @@ public abstract class Peer {
     /** Get encoded public key **/
     protected abstract byte[] getPublicKey();
 
-    private void sendWhois(String name) {
-        final byte[] msg = getWhoisMsg(name);
+    private void sendWhois(String who) {
+        final byte[] msg = getWhoisMsg(who);
         final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), NO_SIG, msg);
         sendMultiQueue.add(data);
     }
@@ -152,12 +150,12 @@ public abstract class Peer {
         final String name = parseWhoisMsg(bytes);
 
         // If your name then shout it out!
-        if (name.equals(this.name))
+        if (name.equals(this.myName))
             sendIam();
     }
 
     private void sendIam() {
-        final byte[] msg = getIamMsg(name, getPublicKey());
+        final byte[] msg = getIamMsg(myName, getPublicKey());
         final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), NO_SIG, msg);
         sendMultiQueue.add(data);
     }
@@ -167,7 +165,7 @@ public abstract class Peer {
         final byte[] key = parseIamMsgForKey(bytes);
 
         // Ignore your own iam msg
-        if (name.equals(this.name))
+        if (name.equals(this.myName))
             return name;
 
         // Add peer
@@ -182,13 +180,13 @@ public abstract class Peer {
     /** Sign message with private key **/
     protected abstract byte[] signMsg(byte[] bytes);
 
-    /** send coin to the peer named 'name' **/
-    protected void sendCoin(String name, Coin coin) {
-        final Data d = peers.get(name);
+    /** send coin to the peer named 'to' **/
+    protected void sendCoin(String to, Coin coin) {
+        final Data d = peers.get(to);
         if (d == null){
             // Could not find peer, broadcast a whois
-            addCoinToSend(name,coin);
-            sendWhois(name);
+            addCoinToSend(to,coin);
+            sendWhois(to);
             return;
         }
 
@@ -230,12 +228,12 @@ public abstract class Peer {
     /** What do you want to do now that you have received a coin **/
     protected abstract void handleCoin(String from, Coin coin);
 
-    private void ackCoin(String name, Coin coin) {
-        final Data d = peers.get(name);
+    private void ackCoin(String to, Coin coin) {
+        final Data d = peers.get(to);
         if (d == null){
             // Could not find peer, broadcast a whois
-            addCoinAckToSend(name,coin);
-            sendWhois(name);
+            addCoinAckToSend(to,coin);
+            sendWhois(to);
             return;
         }
 
@@ -247,18 +245,18 @@ public abstract class Peer {
 
     private void handleCoinAck(byte[] bytes, Data data) {
         final Coin coin = parseCoinAck(bytes);
-        final String to = coin.to;
+        final String to = coin.to; // yes, use the to field.
         handleCoinAck(to, coin, data);
     }
 
-    private void handleCoinAck(String to, Coin coin, Data data) {
-        if (!publicKeys.containsKey(to)) {
-            addCoinAckToRecv(to, coin, data);
-            sendWhois(to);
+    private void handleCoinAck(String from, Coin coin, Data data) {
+        if (!publicKeys.containsKey(from)) {
+            addCoinAckToRecv(from, coin, data);
+            sendWhois(from);
             return;
         }
 
-        final byte[] key = publicKeys.get(to).array();
+        final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, data.signature.array(), data.data.array())) {
             System.out.println("handleCoinAck() coin NOT verified. data="+data.toString());
             return;
@@ -271,24 +269,22 @@ public abstract class Peer {
     /** What do you want to do now that you received an ACK for a sent coin **/
     protected abstract void handleCoinAck(Coin coin);
 
-    private void addCoinToSend(String n, Coin c) {
-        List<Coin> l = coinsToSend.get(n);
+    private void addCoinToSend(String to, Coin c) {
+        List<Coin> l = coinsToSend.get(to);
         if (l == null) {
             l = new LinkedList<Coin>();
-            coinsToSend.put(n, l);
+            coinsToSend.put(to, l);
         }
         l.add(c);
     }
 
-    private void processCoinsToSend(String n) {
-        List<Coin> l = coinsToSend.get(n);
+    private void processCoinsToSend(String to) {
+        List<Coin> l = coinsToSend.get(to);
         if (l==null || l.size()==0)
             return;
         while (l.size()>0) {
             final Coin c = l.remove(0);
-            final Data d = peers.get(n);
-            if (d == null)
-                return;
+            final Data d = peers.get(to);
             final byte[] msg = getCoinMsg(c);
             final byte[] sig = signMsg(msg);
             final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
@@ -296,24 +292,22 @@ public abstract class Peer {
         }
     }
 
-    private void addCoinAckToSend(String n, Coin c) {
-        List<Coin> l = coinAcksToSend.get(n);
+    private void addCoinAckToSend(String to, Coin c) {
+        List<Coin> l = coinAcksToSend.get(to);
         if (l == null) {
             l = new LinkedList<Coin>();
-            coinAcksToSend.put(n, l);
+            coinAcksToSend.put(to, l);
         }
         l.add(c);
     }
 
-    private void processCoinAcksToSend(String n) {
-        List<Coin> l = coinAcksToSend.get(n);
+    private void processCoinAcksToSend(String to) {
+        List<Coin> l = coinAcksToSend.get(to);
         if (l==null || l.size()==0)
             return;
         while (l.size()>0) {
             final Coin c = l.remove(0);
-            final Data d = peers.get(n);
-            if (d == null)
-                return;
+            final Data d = peers.get(to);
             final byte[] msg = getCoinAck(c);
             final byte[] sig = signMsg(msg);
             final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
@@ -321,55 +315,54 @@ public abstract class Peer {
         }
     }
 
-    private void addCoinToRecv(String n, Coin c, Data d) {
-        List<Coin> lc = coinsToRecv.get(n);
-        List<Data> ld = dataToRecv.get(n);
+    private void addCoinToRecv(String from, Coin c, Data d) {
+        final Queued q = new Queued(c,d);
+        List<Queued> lc = coinsToRecv.get(from);
         if (lc == null) {
-            lc = new LinkedList<Coin>();
-            coinsToRecv.put(n, lc);
+            lc = new LinkedList<Queued>();
+            coinsToRecv.put(from, lc);
         }
-        if (ld == null) {
-            ld = new LinkedList<Data>();
-            dataToRecv.put(n, ld);
-        }
-        lc.add(c);
-        ld.add(d);
+        lc.add(q);
     }
 
-    private void processCoinsToRecv(String n) {
-        List<Coin> l = coinsToRecv.get(n);
+    private void processCoinsToRecv(String from) {
+        List<Queued> l = coinsToRecv.get(from);
         if (l==null || l.size()==0)
             return;
         while (l.size()>0) {
-            final Coin c = l.remove(0);
-            final Data d = dataToRecv.get(n).remove(0);
-            handleCoin(n, c, d);
+            final Queued q = l.remove(0);
+            handleCoin(from, q.coin, q.data);
         }
     }
 
-    private void addCoinAckToRecv(String n, Coin c, Data d) {
-        List<Coin> lc = coinAcksToRecv.get(n);
-        List<Data> ld = dataAcksToRecv.get(n);
+    private void addCoinAckToRecv(String from, Coin c, Data d) {
+        final Queued q = new Queued(c,d);
+        List<Queued> lc = coinAcksToRecv.get(from);
         if (lc == null) {
-            lc = new LinkedList<Coin>();
-            coinAcksToSend.put(n, lc);
+            lc = new LinkedList<Queued>();
+            coinAcksToRecv.put(from, lc);
         }
-        if (ld == null) {
-            ld = new LinkedList<Data>();
-            dataAcksToRecv.put(n, ld);
-        }
-        lc.add(c);
-        ld.add(d);
+        lc.add(q);
     }
 
-    private void processCoinAcksToRecv(String n) {
-        List<Coin> l = coinAcksToRecv.get(n);
+    private void processCoinAcksToRecv(String from) {
+        List<Queued> l = coinAcksToRecv.get(from);
         if (l==null || l.size()==0)
             return;
         while (l.size()>0) {
-            final Coin c = l.remove(0);
-            final Data d = dataAcksToRecv.get(n).remove(0);
-            this.handleCoinAck(n, c, d);
+            final Queued q = l.remove(0);
+            handleCoinAck(from, q.coin, q.data);
+        }
+    }
+
+    private static final class Queued {
+
+        private final Coin coin;
+        private final Data data;
+
+        private Queued(Coin coin, Data data) {
+            this.coin = coin;
+            this.data = data;
         }
     }
 
@@ -503,7 +496,7 @@ public abstract class Peer {
     @Override
     public String toString() {
         final StringBuilder builder = new StringBuilder();
-        builder.append("name=").append(name);
+        builder.append("name=").append(myName);
         return builder.toString();
     }
 }

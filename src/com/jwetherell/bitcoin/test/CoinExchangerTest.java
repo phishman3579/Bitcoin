@@ -48,8 +48,42 @@ public class CoinExchangerTest {
         p2.shutdown();
     }
 
+    @Test//(timeout=10000)
+    public void testCoinExchangers2() throws InterruptedException {
+        String n1 = "n1";
+        CoinExchanger p1 = new CoinExchanger(n1);
+        p1.getWallet().addCoin(new Coin("me","you","Coinage.",10));
+
+        Thread.yield();
+
+        String n2 = "n2";
+        CoinExchanger p2 = new CoinExchanger(n2);
+        p2.getWallet().addCoin(new Coin("me","you","Coinage.",20));
+
+        // Wait for everyone to initialize
+        Thread.sleep(250);
+
+        p1.sendCoin(n2, 3);
+        // p1=7, p2=23
+        p2.sendCoin(n1, 7);
+        // p1=14, p2=16
+
+        while (p1.getWallet().getBalance()!=14 || p2.getWallet().getBalance()!=16) {
+            Thread.yield();
+        }
+
+        p1.shutdown();
+        p2.shutdown();
+
+        Assert.assertTrue(p1.getWallet().getPending()==0);
+        Assert.assertTrue(p2.getWallet().getPending()==0);
+
+        Assert.assertTrue(p1.getWallet().getBalance()==14);
+        Assert.assertTrue(p2.getWallet().getBalance()==16);
+    }
+
     @Test//(timeout=1000)
-    public void testCoinExchangers() throws InterruptedException {
+    public void testCoinExchangers3() throws InterruptedException {
         String n1 = "n1";
         CoinExchanger p1 = new CoinExchanger(n1);
         p1.getWallet().addCoin(new Coin("me","you","Coinage.",10));
@@ -91,41 +125,6 @@ public class CoinExchangerTest {
         Assert.assertTrue(p1.getWallet().getBalance()==18);
         Assert.assertTrue(p2.getWallet().getBalance()==16);
         Assert.assertTrue(p3.getWallet().getBalance()==11);
-    }
-
-
-    @Test//(timeout=10000)
-    public void testCoinExchangers2() throws InterruptedException {
-        String n1 = "n1";
-        CoinExchanger p1 = new CoinExchanger(n1);
-        p1.getWallet().addCoin(new Coin("me","you","Coinage.",10));
-
-        Thread.yield();
-
-        String n2 = "n2";
-        CoinExchanger p2 = new CoinExchanger(n2);
-        p2.getWallet().addCoin(new Coin("me","you","Coinage.",20));
-
-        // Wait for everyone to initialize
-        Thread.sleep(250);
-
-        p1.sendCoin(n2, 3);
-        // p1=7, p2=23
-        p2.sendCoin(n1, 7);
-        // p1=14, p2=16
-
-        while (p1.getWallet().getBalance()!=14 || p2.getWallet().getBalance()!=16) {
-            Thread.yield();
-        }
-
-        p1.shutdown();
-        p2.shutdown();
-
-        Assert.assertTrue(p1.getWallet().getPending()==0);
-        Assert.assertTrue(p2.getWallet().getPending()==0);
-
-        Assert.assertTrue(p1.getWallet().getBalance()==14);
-        Assert.assertTrue(p2.getWallet().getBalance()==16);
     }
 
     private static class MyCoinExchanger extends CoinExchanger {

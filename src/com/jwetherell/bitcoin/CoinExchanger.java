@@ -106,7 +106,7 @@ public class CoinExchanger extends Peer {
     @Override
     protected synchronized void handleCoin(String from, Coin coin) {
         // If not our coin, ignore
-        if (!(name.equals(coin.to)))
+        if (!(myName.equals(coin.to)))
             return;
 
         // Throw away duplicate coin requests
