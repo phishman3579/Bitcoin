@@ -133,7 +133,7 @@ public class Multicast {
                         data.fromBuffer(b);
 
                         if (DEBUG)
-                            System.out.println("Server received '"+new String(data.data.array())+"' from "+data.sourceAddr.getHostAddress()+":"+data.sourcePort);
+                            System.out.println("Server received '"+new String(data.message.array())+"' from "+data.sourceAddr.getHostAddress()+":"+data.sourcePort);
 
                         toRecv.add(data);
                         listener.onMessage(this);
@@ -192,7 +192,7 @@ public class Multicast {
                             d.toBuffer(bytes);
 
                             if (DEBUG)
-                                System.out.println("Client ("+d.sourceAddr.getHostAddress()+":"+d.sourcePort+") sending '"+new String(d.data.array())+"'");
+                                System.out.println("Client ("+d.sourceAddr.getHostAddress()+":"+d.sourcePort+") sending '"+new String(d.message.array())+"'");
 
                             Multicast.sendData(s, ttl, buffer);
                         }

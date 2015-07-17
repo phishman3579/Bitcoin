@@ -116,7 +116,7 @@ public class UDP {
                         data.fromBuffer(b);
 
                         if (DEBUG) 
-                            System.out.println("Server ("+getHost()+":"+getPort()+") received '"+new String(data.data.array())+"' from "+data.sourceAddr.getHostAddress()+":"+data.sourcePort);
+                            System.out.println("Server ("+getHost()+":"+getPort()+") received '"+new String(data.message.array())+"' from "+data.sourceAddr.getHostAddress()+":"+data.sourcePort);
 
                         toRecv.add(data);
                         listener.onMessage(this);
@@ -167,7 +167,7 @@ public class UDP {
                             d.toBuffer(bytes);
 
                             if (DEBUG) 
-                                System.out.println("Client ("+d.sourceAddr.getHostAddress()+":"+d.sourcePort+") sending '"+new String(d.data.array())+"'");
+                                System.out.println("Client ("+d.sourceAddr.getHostAddress()+":"+d.sourcePort+") sending '"+new String(d.message.array())+"'");
 
                             UDP.sendData(s, d.destAddr, d.destPort, buffer);
                         }

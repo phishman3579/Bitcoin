@@ -126,7 +126,7 @@ public class TCP {
                         data.fromBuffer(b);
 
                         if (DEBUG) 
-                            System.out.println("Server ("+getHost()+":"+getPort()+") received '"+new String(data.data.array())+"' from "+data.sourceAddr.getHostAddress()+":"+data.sourcePort);
+                            System.out.println("Server ("+getHost()+":"+getPort()+") received '"+new String(data.message.array())+"' from "+data.sourceAddr.getHostAddress()+":"+data.sourcePort);
 
                         toRecv.add(data);
                         listener.onMessage(this);
@@ -180,7 +180,7 @@ public class TCP {
                             d.toBuffer(bytes);
 
                             if (DEBUG) 
-                                System.out.println("Client ("+d.sourceAddr.getHostAddress()+":"+d.sourcePort+") sending '"+new String(d.data.array())+"'");
+                                System.out.println("Client ("+d.sourceAddr.getHostAddress()+":"+d.sourcePort+") sending '"+new String(d.message.array())+"'");
 
                             s = TCP.createClient(d.destAddr.getHostAddress(), d.destPort);
                             TCP.sendData(s, buffer);

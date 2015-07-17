@@ -35,8 +35,10 @@ public abstract class Peer {
     private static final String                   TRANSACTION     = "Transaction ";
     private static final String                   VALIDATION      = "Validate    ";
 
+    private static final int                      KEY_LENGTH      = 4;
     private static final int                      NAME_LENGTH     = 4;
 
+    private static final String                   EVERY_ONE       = "EVERYONE";
     private static final byte[]                   NO_SIG          = new byte[0];
 
     private final TCP.Peer.RunnableSend           sendTcp         = new TCP.Peer.RunnableSend();
@@ -48,31 +50,38 @@ public abstract class Peer {
          */
         @Override
         public void onMessage(Receiver recv) {
-            Data d = recv.getQueue().poll();
-            while (d != null) {
-                final byte[] bytes = d.data.array();
+            Data data = recv.getQueue().poll();
+            while (data != null) {
+                final String from = data.from;
+
+                // Update peers
+                peers.put(from, data);
+
+                final byte[] bytes = data.message.array();
                 final String string = new String(bytes);
                 String hdr = string.substring(0, HEADER_LENGTH);
                 if (DEBUG) 
                     System.out.println("Listener ("+myName+") received '"+hdr+"' msg");
                 if (hdr.equals(WHOIS_MSG)) {
-                    handleWhois(bytes,d);
+                    handleWhois(bytes,data);
                 } else if (hdr.equals(IAM_MSG)) {
-                    String n = handleIam(bytes,d);
-                    processCoinsToSend(n);
-                    processCoinsToRecv(n);
+                    handleIam(bytes,data);
+                    processCoinsToSend(from);
+                    processCoinsToRecv(from);
                 } else if (hdr.equals(COIN_MSG)) {
-                    handleCoin(bytes,d);
+                    handleCoin(bytes,data);
                 } else if (hdr.equals(COIN_ACK)) {
-                    handleCoinAck(bytes,d);
+                    handleCoinAck(bytes,data);
                 } else if (hdr.equals(TRANSACTION)) {
-                    handleTransaction(bytes,d);
+                    handleTransaction(bytes,data);
                 } else if (hdr.equals(VALIDATION)) {
-                    handleValidation(bytes,d);
+                    handleValidation(bytes,data);
                 } else {
                     System.err.println("Cannot handle msg. hdr="+hdr);
                 }
-                d = recv.getQueue().poll();
+
+                // Get next message
+                data = recv.getQueue().poll();
             }
             Thread.yield();
         }
@@ -153,7 +162,7 @@ public abstract class Peer {
 
     private void sendWhois(String who) {
         final byte[] msg = getWhoisMsg(who);
-        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), NO_SIG, msg);
+        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), EVERY_ONE, recvMulti.getHost(), recvMulti.getPort(), NO_SIG, msg);
         sendMultiQueue.add(data);
     }
 
@@ -166,22 +175,17 @@ public abstract class Peer {
     }
 
     private void sendIam() {
-        final byte[] msg = getIamMsg(myName, getPublicKey());
-        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), NO_SIG, msg);
+        final byte[] msg = getIamMsg(getPublicKey());
+        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), EVERY_ONE, recvMulti.getHost(), recvMulti.getPort(), NO_SIG, msg);
         sendMultiQueue.add(data);
     }
 
-    private String handleIam(byte[] bytes, Data data) {
-        final String name = parseIamMsgForName(bytes);
-        final byte[] key = parseIamMsgForKey(bytes);
-
-        // Add peer
-        peers.put(name, data);
+    private void handleIam(byte[] bytes, Data data) {
+        final String name = data.from;
+        final byte[] key = parseIamMsg(bytes);
 
         // Public key
         newPublicKey(name, key);
-
-        return name;
     }
 
     /** What do you want to do with a new public key **/
@@ -205,7 +209,7 @@ public abstract class Peer {
 
         final byte[] msg = getCoinMsg(coin);
         final byte[] sig = signMsg(msg);
-        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
         sendTcpQueue.add(data);
     }
 
@@ -217,7 +221,7 @@ public abstract class Peer {
 
     private void handleCoin(String from, Coin coin, Data data) {
         // Let the app logic do what it needs to
-        KeyStatus knownPublicKey = handleCoin(from, coin, data.signature.array(), data.data.array());
+        KeyStatus knownPublicKey = handleCoin(from, coin, data.signature.array(), data.message.array());
         if (knownPublicKey == KeyStatus.NO_PUBLIC_KEY) {
             addCoinToRecv(false, from, coin, data);
             sendWhois(from);
@@ -244,7 +248,7 @@ public abstract class Peer {
 
         final byte[] msg = getCoinAck(coin);
         final byte[] sig = signMsg(msg);
-        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
         sendTcpQueue.add(data);
     }
 
@@ -256,7 +260,7 @@ public abstract class Peer {
 
     private void handleCoinAck(String from, Coin coin, Data data) {
         // Let the app logic do what it needs to
-        KeyStatus knownPublicKey = handleCoinAck(from, coin, data.signature.array(), data.data.array());
+        KeyStatus knownPublicKey = handleCoinAck(from, coin, data.signature.array(), data.message.array());
         if (knownPublicKey == KeyStatus.NO_PUBLIC_KEY) {
             addCoinToRecv(true, from, coin, data);
             sendWhois(from);
@@ -276,16 +280,15 @@ public abstract class Peer {
     protected abstract Transaction getTransaction(Coin coin);
     
     protected void sendTransaction(Transaction trans, Data d) {
-        trans.from = myName; // set to my name, because I am the one who signed it
         final byte[] msg = getTransactionMsg(trans);
         final byte[] sig = signMsg(msg);
-        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), d.from, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
         sendTcpQueue.add(data);
     }
 
     private void handleTransaction(byte[] bytes, Data data) {
         final Transaction trans = parseTransactionMsg(bytes);
-        final HashStatus status = checkTransaction(trans.from, trans, data.signature.array(), data.data.array());
+        final HashStatus status = checkTransaction(data.from, trans, data.signature.array(), data.message.array());
         if (status != HashStatus.SUCCESS)
             return;
 
@@ -294,10 +297,9 @@ public abstract class Peer {
     }
 
     protected void sendValidation(Transaction trans) {
-        trans.from = myName; // set to my name, because I am the one who signed it
         final byte[] msg = getValidationMsg(trans);
         final byte[] sig = signMsg(msg);
-        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), sig, msg);
+        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), EVERY_ONE, recvMulti.getHost(), recvMulti.getPort(), sig, msg);
         sendMultiQueue.add(data);
     }
 
@@ -305,16 +307,16 @@ public abstract class Peer {
         final Transaction trans = parseValidationMsg(bytes);
         if (trans.getIsValid()) {
             // Yey! we got a validation from the community
-            handleValidation(trans.from, trans, data.signature.array(), data.data.array());
+            handleValidation(data.from, trans, data.signature.array(), data.message.array());
             return;
         }
 
         // Don't validate my own transaction
-        final String from = trans.from;
+        final String from = data.from;
         if (from.equals(myName))
             return;
 
-        final HashStatus status = checkTransaction(from, trans, data.signature.array(), data.data.array());
+        final HashStatus status = checkTransaction(from, trans, data.signature.array(), data.message.array());
         if (status != HashStatus.SUCCESS)
             return;
 
@@ -348,7 +350,7 @@ public abstract class Peer {
             final Data d = peers.get(to); // Do not use the data object in the queue object
             final byte[] msg = getCoinMsg(q.coin);
             final byte[] sig = signMsg(msg);
-            final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+            final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), d.from, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
             sendTcpQueue.add(data);
         }
     }
@@ -389,17 +391,12 @@ public abstract class Peer {
         }
     }
 
-    public static final byte[] getIamMsg(String name, byte[] publicKey) {
-        final byte[] bName = name.getBytes();
-        final int nameLength = bName.length;
+    public static final byte[] getIamMsg(byte[] publicKey) {
         final int publicKeyLength = publicKey.length;
-        final byte[] msg = new byte[HEADER_LENGTH + NAME_LENGTH + nameLength + NAME_LENGTH + publicKeyLength];
+        final byte[] msg = new byte[HEADER_LENGTH + KEY_LENGTH + publicKeyLength];
         final ByteBuffer buffer = ByteBuffer.wrap(msg);
 
         buffer.put(IAM_MSG.getBytes());
-
-        buffer.putInt(nameLength);
-        buffer.put(bName);
 
         buffer.putInt(publicKeyLength);
         buffer.put(publicKey);
@@ -407,32 +404,11 @@ public abstract class Peer {
         return msg;
     }
 
-    public static final String parseIamMsgForName(byte[] bytes) {
+    public static final byte[] parseIamMsg(byte[] bytes) {
         final ByteBuffer buffer = ByteBuffer.wrap(bytes);
 
         final byte [] bMsgType = new byte[HEADER_LENGTH];
         buffer.get(bMsgType);
-
-        final int nLength = buffer.getInt();
-        final byte [] bName = new byte[nLength];
-        buffer.get(bName);
-
-        final int kLength = buffer.getInt();
-        final byte [] bKey = new byte[kLength];
-        buffer.get(bKey);
-
-        return new String(bName);
-    }
-
-    public static final byte[] parseIamMsgForKey(byte[] bytes) {
-        final ByteBuffer buffer = ByteBuffer.wrap(bytes);
-
-        final byte [] bMsgType = new byte[HEADER_LENGTH];
-        buffer.get(bMsgType);
-
-        final int nLength = buffer.getInt();
-        final byte [] bName = new byte[nLength];
-        buffer.get(bName);
 
         final int kLength = buffer.getInt();
         final byte [] bKey = new byte[kLength];

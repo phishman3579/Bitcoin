@@ -11,14 +11,16 @@ public class DataTest {
 
     @Test
     public void testSerialization() {
+        final String from = "me";
         final String sHost = "127.0.0.1";
         final int sPort = 1024;
+        final String to = "you";
         final String dHost = "localhost";
         final int dPort = 1025;
         final byte[] sig = "sig".getBytes();
         final byte[] msg = "This is a message".getBytes();
 
-        final Data d1 = new Data(sHost,sPort,dHost,dPort,sig,msg);
+        final Data d1 = new Data(from,sHost,sPort,to,dHost,dPort,sig,msg);
         ByteBuffer b = ByteBuffer.allocate(d1.getBufferLength());
         d1.toBuffer(b);
 

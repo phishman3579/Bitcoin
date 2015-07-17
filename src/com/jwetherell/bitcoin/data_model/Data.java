@@ -7,18 +7,26 @@ import java.util.Arrays;
 
 public class Data {
 
-    private static final int    LENGTH_LENGTH    = 4;
+    private static final int    LENGTH_LENGTH   = 4;
+    private static final int    FROM_LENGTH     = 4;
+    private static final int    TO_LENGTH       = 4;
 
+    public String               from;
+    public String               to;
     public InetAddress          sourceAddr;
     public int                  sourcePort;
     public InetAddress          destAddr;
     public int                  destPort;
     public ByteBuffer           signature;
-    public ByteBuffer           data;
+    public ByteBuffer           message;
 
     public Data() { }
 
-    public Data(String sourceAddr, int sourcePort, String destAddr, int destPort, byte[] signature, byte[] bytes) {
+    public Data(String from, String sourceAddr, int sourcePort, 
+                String to, String destAddr, int destPort, 
+                byte[] signature, byte[] bytes) {
+        this.from = from;
+        this.to = to;
         try {
             this.sourceAddr = InetAddress.getByName(sourceAddr);
             this.destAddr = InetAddress.getByName(destAddr);
@@ -32,21 +40,31 @@ public class Data {
         this.signature.put(signature);
         this.signature.flip();
 
-        this.data = ByteBuffer.allocate(bytes.length);
-        this.data.put(bytes);
-        this.data.flip();
+        this.message = ByteBuffer.allocate(bytes.length);
+        this.message.put(bytes);
+        this.message.flip();
     }
 
     public int getBufferLength() {
-        return  LENGTH_LENGTH + sourceAddr.getHostAddress().getBytes().length + 
+        return  FROM_LENGTH + from.getBytes().length +
+                TO_LENGTH + to.getBytes().length +
+                LENGTH_LENGTH + sourceAddr.getHostAddress().getBytes().length + 
                 LENGTH_LENGTH + String.valueOf(sourcePort).getBytes().length + 
                 LENGTH_LENGTH + destAddr.getHostAddress().getBytes().length + 
                 LENGTH_LENGTH + String.valueOf(destPort).getBytes().length + 
                 LENGTH_LENGTH + signature.limit() +
-                LENGTH_LENGTH + data.limit();
+                LENGTH_LENGTH + message.limit();
     }
 
     public void toBuffer(ByteBuffer buffer) {
+        final byte[] fBytes = from.getBytes();
+        buffer.putInt(fBytes.length);
+        buffer.put(fBytes);
+
+        final byte[] oBytes = to.getBytes();
+        buffer.putInt(oBytes.length);
+        buffer.put(oBytes);
+
         { // Source
             final byte[] hBytes = sourceAddr.getHostAddress().getBytes();
             final int hLength = hBytes.length;
@@ -76,13 +94,23 @@ public class Data {
         buffer.put(signature);
 
         // Data
-        buffer.putInt(data.limit());
-        buffer.put(data);
+        buffer.putInt(message.limit());
+        buffer.put(message);
 
         buffer.flip();
     }
 
     public void fromBuffer(ByteBuffer buffer) {
+        final int fLength = buffer.getInt();
+        final byte[] fBytes = new byte[fLength];
+        buffer.get(fBytes, 0, fLength);
+        from = new String(fBytes);
+
+        final int oLength = buffer.getInt();
+        final byte[] oBytes = new byte[oLength];
+        buffer.get(oBytes, 0, oLength);
+        to = new String(oBytes);
+
         { // Source
             final int hLength = buffer.getInt();
             final byte[] hostBytes = new byte[hLength];
@@ -130,10 +158,10 @@ public class Data {
         final int dLength = buffer.getInt();
         final byte[] dBytes = new byte[dLength];
         buffer.get(dBytes, 0, dLength);
-        this.data = ByteBuffer.allocate(dBytes.length);
-        this.data.put(dBytes);
+        this.message = ByteBuffer.allocate(dBytes.length);
+        this.message.put(dBytes);
 
-        this.data.flip();
+        this.message.flip();
     }
 
     /**
@@ -144,6 +172,10 @@ public class Data {
         if (!(o instanceof Data))
             return false;
         Data d = (Data) o;
+        if (!(d.from.equals(this.from)))
+            return false;
+        if (!(d.to.equals(this.to)))
+            return false;
         if (!(sourceAddr.equals(d.sourceAddr)))
             return false;
         if (sourcePort != d.sourcePort)
@@ -154,7 +186,7 @@ public class Data {
             return false;
         if (!(Arrays.equals(this.signature.array(), d.signature.array())))
             return false;
-        if (!(Arrays.equals(this.data.array(), d.data.array())))
+        if (!(Arrays.equals(this.message.array(), d.message.array())))
             return false;
         return true;
     }
@@ -165,9 +197,11 @@ public class Data {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
+        builder.append("from='").append(from).append("'\n");
         builder.append("source=").append(sourceAddr.getHostAddress()).append(":").append(sourcePort).append("\n");
+        builder.append("to='").append(to).append("'\n");
         builder.append("destination=").append(destAddr.getHostAddress()).append(":").append(destPort).append("\n");
-        builder.append("data=").append(new String(data.array()));
+        builder.append("data=").append(new String(message.array()));
         return builder.toString();
     }
 }

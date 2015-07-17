@@ -87,13 +87,6 @@ public class CoinExchanger extends Peer {
         publicKeys.put(name, ByteBuffer.wrap(copy));
     }
 
-    public void sendCoin(String name, int value) {
-        // Borrow the coin from our wallet until we receive an ACK
-        final String msg = value+" from "+myName+" to "+name;
-        final Coin coin = new Coin(myName, name, msg, value);
-        super.sendCoin(name,coin);
-    }
-
     @Override
     protected synchronized byte[] signMsg(byte[] bytes) {
         byte[] signed = null;
@@ -118,6 +111,13 @@ public class CoinExchanger extends Peer {
             System.err.println("Could not decode msg. "+e);
         }
         return verified;
+    }
+
+    public void sendCoin(String name, int value) {
+        // Borrow the coin from our wallet until we receive an ACK
+        final String msg = value+" from "+myName+" to "+name;
+        final Coin coin = new Coin(myName, name, msg, value);
+        super.sendCoin(name, coin);
     }
 
     @Override

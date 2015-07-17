@@ -13,12 +13,9 @@ public class PeerTest {
     @Test
     public void testHello() {
         final byte[] key = "key".getBytes();
-        final String hello = "hello";
-        final byte[] p1 = Peer.getIamMsg(hello,key);
-        final String h = Peer.parseIamMsgForName(p1);
-        final byte[] k = Peer.parseIamMsgForKey(p1);
+        final byte[] p1 = Peer.getIamMsg(key);
+        final byte[] k = Peer.parseIamMsg(p1);
 
-        Assert.assertTrue(hello.equals(h));
         Assert.assertTrue(Arrays.equals(key, k));
     }
 
