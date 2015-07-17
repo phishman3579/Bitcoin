@@ -10,7 +10,7 @@ import com.jwetherell.bitcoin.networking.Multicast;
 
 public class MulticastTest {
 
-    @Test
+    @Test//(timeout=5000)
     public void test() throws InterruptedException {
         final String from = "me";
         final String to = "you";
@@ -35,16 +35,18 @@ public class MulticastTest {
         };
 
         // Start both the sender and receiver
-        Multicast.Peer.RunnableRecv recv = new Multicast.Peer.RunnableRecv(listener);
-        final Thread r = new Thread(new Multicast.Peer.RunnableRecv(listener));
+        final Multicast.Peer.RunnableRecv recv = new Multicast.Peer.RunnableRecv(listener);
+        final Thread r = new Thread(recv,"recv");
         r.start();     
 
         final Multicast.Peer.RunnableSend send = new Multicast.Peer.RunnableSend();
-        final Thread s = new Thread(send);
+        final Thread s = new Thread(send,"send");
         s.start();
 
         // Wait for everyone to initialize
-        Thread.sleep(250);
+        while (recv.isReady()==false || send.isReady()==false) {
+            Thread.yield();
+        }
 
         final Data data = new Data(from, recv.getHost(), recv.getPort(), to, recv.getHost(), recv.getPort(), sig, toSend);
         send.getQueue().add(data);

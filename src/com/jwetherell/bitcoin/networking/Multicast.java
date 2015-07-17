@@ -89,24 +89,46 @@ public class Multicast {
 
         public static final class RunnableRecv implements Runnable, Receiver {
 
-            public static boolean                               run         =   true;
+            public static volatile boolean                      run         = true;
 
             private final ConcurrentLinkedQueue<Data>           toRecv      = new ConcurrentLinkedQueue<Data>();
             private final Listener                              listener;
+
+            private volatile boolean                            isReady     = false;
 
             public RunnableRecv(Listener listener) {
                 run = true;
                 this.listener = listener;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public Queue<Data> getQueue() {
                 return toRecv;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public boolean isReady() {
+                return isReady;
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public String getHost() {
                 return GROUP;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public int getPort() {
                 return PORT;
             }
@@ -121,6 +143,7 @@ public class Multicast {
                     if (DEBUG)
                         System.out.println("Creating receiver");
                     s = Multicast.createReceiver();
+                    isReady = true;
                     while (run) {
                         final ByteBuffer b = ByteBuffer.allocate(BUFFER_SIZE);
                         final boolean p = Multicast.recvData(s, b.array());
@@ -158,18 +181,32 @@ public class Multicast {
 
         public static final class RunnableSend implements Runnable, Sender {
 
-            private static final int                      ttl         = 1;
+            private static final int                            ttl         = 1;
 
-            public static boolean                         run         = true;
+            public static volatile boolean                      run         = true;
 
-            public final ConcurrentLinkedQueue<Data>      toSend      = new ConcurrentLinkedQueue<Data>();
+            public final ConcurrentLinkedQueue<Data>            toSend      = new ConcurrentLinkedQueue<Data>();
+
+            private volatile boolean                            isReady     = false;
 
             public RunnableSend() {
                 run = true;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public Queue<Data> getQueue() {
                 return toSend;
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public boolean isReady() {
+                return isReady;
             }
 
             /**
@@ -182,6 +219,7 @@ public class Multicast {
                     if (DEBUG)
                         System.out.println("Creating sender");
                     s = Multicast.createSender();
+                    isReady = true;
                     while (run) {
                         if (DEBUG && toSend.size()>1)
                             System.out.println("Client toSend size="+toSend.size());

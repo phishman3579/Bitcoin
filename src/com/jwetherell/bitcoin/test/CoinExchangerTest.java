@@ -16,9 +16,6 @@ import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class CoinExchangerTest {
 
-    // This may need to vary depending on the machine
-    private static final int INIT_SLEEP     = 250;
-
     @Test(timeout=5000)
     public void testBadSignature() throws InterruptedException {
         String n1 = "n1";
@@ -29,7 +26,9 @@ public class CoinExchangerTest {
         CoinExchanger p3 = new CoinExchanger(n3);
 
         // Wait for everyone to initialize
-        Thread.sleep(INIT_SLEEP);
+        while (p1.isReady()==false || p2.isReady()==false || p3.isReady()==false) {
+            Thread.yield();
+        }
 
         // Send coin (which'll be rejected for a bad signature)
         p1.sendCoin(n2,10);
@@ -65,7 +64,9 @@ public class CoinExchangerTest {
         CoinExchanger p2 = new CoinExchanger(n2);
 
         // Wait for everyone to initialize
-        Thread.sleep(INIT_SLEEP);
+        while (p1.isReady()==false || p2.isReady()==false) {
+            Thread.yield();
+        }
 
         p1.sendCoin(n2, 3);
         // p1=-3, p2=3
@@ -100,7 +101,9 @@ public class CoinExchangerTest {
         CoinExchanger p3 = new CoinExchanger(n3);
 
         // Wait for everyone to initialize
-        Thread.sleep(INIT_SLEEP);
+        while (p1.isReady()==false || p2.isReady()==false || p3.isReady()==false) {
+            Thread.yield();
+        }
 
         p1.sendCoin(n2, 3);
         // p1=-3, p2=3, p3=0
@@ -143,7 +146,9 @@ public class CoinExchangerTest {
         DupCoinExchanger p2 = new DupCoinExchanger(n2);
 
         // Wait for everyone to initialize
-        Thread.sleep(INIT_SLEEP);
+        while (p1.isReady()==false || p2.isReady()==false) {
+            Thread.yield();
+        }
 
         // Send coin
         p1.sendCoin(n2,10);
@@ -186,11 +191,11 @@ public class CoinExchangerTest {
         }
 
         public String getHost() {
-            return recvTcp.getHost();
+            return runnableRecvTcp.getHost();
         }
 
         public int getPort() {
-            return recvTcp.getPort();
+            return runnableRecvTcp.getPort();
         }
 
         /** Really only here to open up the method for JUnits **/

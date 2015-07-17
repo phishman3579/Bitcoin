@@ -8,6 +8,8 @@ public interface Receiver {
 
     public Queue<Data> getQueue();
 
+    public boolean isReady();
+
     public String getHost();
 
     public int getPort();

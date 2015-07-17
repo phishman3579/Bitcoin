@@ -70,11 +70,13 @@ public class UDP {
 
         public static final class RunnableRecv implements Runnable, Receiver {
 
-            public static boolean                               run         = true;
+            public static volatile boolean                      run         = true;
 
             private final ConcurrentLinkedQueue<Data>           toRecv      = new ConcurrentLinkedQueue<Data>();
             private final int                                   port;
             private final Listener                              listener;
+
+            private volatile boolean                            isReady     = false;
 
             public RunnableRecv(Listener listener) {
                 run = true;
@@ -82,14 +84,34 @@ public class UDP {
                 this.listener = listener;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public Queue<Data> getQueue() {
                 return toRecv;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public boolean isReady() {
+                return isReady;
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public String getHost() {
                 return LOCAL;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public int getPort() {
                 return port;
             }
@@ -104,6 +126,7 @@ public class UDP {
                     if (DEBUG) 
                         System.out.println("Creating server. port="+port);
                     s = UDP.createServer(port);
+                    isReady = true;
                     while (run) {
                         final ByteBuffer b = ByteBuffer.allocate(BUFFER_SIZE);
                         final boolean p = UDP.recvData(s,b.array());
@@ -135,16 +158,30 @@ public class UDP {
 
         public static final class RunnableSend implements Runnable, Sender {
 
-            public static boolean                               run             = true;
+            public static volatile boolean                      run         = true;
 
-            private final ConcurrentLinkedQueue<Data>           toSend          = new ConcurrentLinkedQueue<Data>();
+            private final ConcurrentLinkedQueue<Data>           toSend      = new ConcurrentLinkedQueue<Data>();
+
+            private volatile boolean                            isReady     = false;
 
             public RunnableSend() {
                 run = true;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public Queue<Data> getQueue() {
                 return toSend;
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public boolean isReady() {
+                return isReady;
             }
 
             /**
@@ -157,6 +194,7 @@ public class UDP {
                     if (DEBUG) 
                         System.out.println("Creating client");
                     s = UDP.createClient();
+                    isReady = true;
                     while (run) {
                         if (DEBUG && toSend.size()>1)
                             System.out.println("Client toSend size="+toSend.size());

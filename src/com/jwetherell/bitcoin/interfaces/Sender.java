@@ -8,4 +8,5 @@ public interface Sender {
 
     public Queue<Data> getQueue();
 
+    public boolean isReady();
 }

@@ -80,11 +80,13 @@ public class TCP {
 
         public static final class RunnableRecv implements Runnable, Receiver {
 
-            public static boolean                               run         = true;
+            public static volatile boolean                      run         = true;
 
             private final ConcurrentLinkedQueue<Data>           toRecv      = new ConcurrentLinkedQueue<Data>();
             private final int                                   port;
             private final Listener                              listener;
+
+            private volatile boolean                            isReady     = false;
 
             public RunnableRecv(Listener listener) {
                 run = true;
@@ -92,14 +94,34 @@ public class TCP {
                 this.listener = listener;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public Queue<Data> getQueue() {
                 return toRecv;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public boolean isReady() {
+                return isReady;
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public String getHost() {
                 return LOCAL;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public int getPort() {
                 return port;
             }
@@ -114,6 +136,7 @@ public class TCP {
                     if (DEBUG) 
                         System.out.println("Creating server. port="+port);
                     s = TCP.createServer(port);
+                    isReady = true;
                     while (run) {
                         final ByteBuffer b = ByteBuffer.allocate(BUFFER_SIZE);
                         final boolean p = TCP.recvData(s,b.array());
@@ -149,16 +172,30 @@ public class TCP {
 
         public static final class RunnableSend implements Runnable, Sender {
 
-            public static boolean                               run             = true;
+            public static volatile boolean                      run         = true;
 
-            private final ConcurrentLinkedQueue<Data>           toSend          = new ConcurrentLinkedQueue<Data>();
+            private final ConcurrentLinkedQueue<Data>           toSend      = new ConcurrentLinkedQueue<Data>();
+
+            private volatile boolean                            isReady     = false;
 
             public RunnableSend() {
                 run = true;
             }
 
+            /**
+             * {@inheritDoc}
+             */
+            @Override
             public Queue<Data> getQueue() {
                 return toSend;
+            }
+
+            /**
+             * {@inheritDoc}
+             */
+            @Override
+            public boolean isReady() {
+                return isReady;
             }
 
             /**
@@ -168,8 +205,7 @@ public class TCP {
             public void run() {
                 Socket s = null;
                 try {
-                    if (DEBUG) 
-                        System.out.println("Creating client");
+                    isReady = true;
                     while (run) {
                         if (DEBUG && toSend.size()>1)
                             System.out.println("Client toSend size="+toSend.size());

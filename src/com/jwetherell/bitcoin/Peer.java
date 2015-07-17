@@ -24,26 +24,26 @@ public abstract class Peer {
 
     protected static enum KeyStatus { NO_PUBLIC_KEY, BAD_SIGNATURE, SUCCESS };
 
-    protected static final boolean                DEBUG           = Boolean.getBoolean("debug");
+    protected static final boolean                DEBUG                   = Boolean.getBoolean("debug");
 
-    private static final int                      HEADER_LENGTH   = 12;
-    private static final String                   WHOIS_MSG       = "Who is      ";
-    private static final String                   IAM_MSG         = "I am        ";
-    private static final String                   COIN_MSG        = "Coin        ";
-    private static final String                   COIN_ACK        = "Coin ACK    ";
-    private static final String                   TRANSACTION     = "Transaction ";
-    private static final String                   VALIDATION      = "Validate    ";
+    private static final int                      HEADER_LENGTH           = 12;
+    private static final String                   WHOIS_MSG               = "Who is      ";
+    private static final String                   IAM_MSG                 = "I am        ";
+    private static final String                   COIN_MSG                = "Coin        ";
+    private static final String                   COIN_ACK                = "Coin ACK    ";
+    private static final String                   TRANSACTION             = "Transaction ";
+    private static final String                   VALIDATION              = "Validate    ";
 
-    private static final int                      KEY_LENGTH      = 4;
-    private static final int                      NAME_LENGTH     = 4;
+    private static final int                      KEY_LENGTH              = 4;
+    private static final int                      NAME_LENGTH             = 4;
 
-    private static final String                   EVERY_ONE       = "EVERYONE";
-    private static final byte[]                   NO_SIG          = new byte[0];
+    private static final String                   EVERY_ONE               = "EVERYONE";
+    private static final byte[]                   NO_SIG                  = new byte[0];
 
-    private final TCP.Peer.RunnableSend           sendTcp         = new TCP.Peer.RunnableSend();
-    private final Multicast.Peer.RunnableSend     sendMulti       = new Multicast.Peer.RunnableSend();
+    private final TCP.Peer.RunnableSend           runnableSendTcp         = new TCP.Peer.RunnableSend();
+    private final Multicast.Peer.RunnableSend     runnableSendMulti       = new Multicast.Peer.RunnableSend();
 
-    private final Listener                        listener        = new Listener() {
+    private final Listener                        listener                = new Listener() {
         /**
          * {@inheritDoc}
          */
@@ -58,7 +58,7 @@ public abstract class Peer {
 
                 final byte[] bytes = data.message.array();
                 final String string = new String(bytes);
-                String hdr = string.substring(0, HEADER_LENGTH);
+                final String hdr = string.substring(0, HEADER_LENGTH);
                 if (DEBUG) 
                     System.out.println("Listener ("+myName+") received '"+hdr+"' msg");
                 if (hdr.equals(WHOIS_MSG)) {
@@ -87,45 +87,45 @@ public abstract class Peer {
     };
 
     // Keep track of everyone's name -> ip+port
-    private final Map<String,Data>                peers           = new ConcurrentHashMap<String,Data>();
+    private final Map<String,Data>                peers                   = new ConcurrentHashMap<String,Data>();
 
     // Pending msgs (happens if we don't know the ip+port OR the public key of a host
-    private final Map<String,Queue<Queued>>        coinsToSend     = new ConcurrentHashMap<String,Queue<Queued>>();
-    private final Map<String,Queue<Queued>>        coinsToRecv     = new ConcurrentHashMap<String,Queue<Queued>>();
+    private final Map<String,Queue<Queued>>        coinsToSend            = new ConcurrentHashMap<String,Queue<Queued>>();
+    private final Map<String,Queue<Queued>>        coinsToRecv            = new ConcurrentHashMap<String,Queue<Queued>>();
 
-    private final Thread                          tcpSend;
-    private final Thread                          tcpRecv;
-    private final Thread                          multiSend;
-    private final Thread                          multiRecv;
+    private final Thread                          tcpSendThread;
+    private final Thread                          tcpRecvThread;
+    private final Thread                          multiSendThread;
+    private final Thread                          multiRecvThread;
 
     // Thread safe queues for sending messages
     private final Queue<Data>                     sendTcpQueue;
     private final Queue<Data>                     sendMultiQueue;
 
-    protected final TCP.Peer.RunnableRecv         recvTcp         = new TCP.Peer.RunnableRecv(listener);
-    protected final Multicast.Peer.RunnableRecv   recvMulti       = new Multicast.Peer.RunnableRecv(listener);
+    protected final TCP.Peer.RunnableRecv         runnableRecvTcp         = new TCP.Peer.RunnableRecv(listener);
+    protected final Multicast.Peer.RunnableRecv   runnableRecvMulti       = new Multicast.Peer.RunnableRecv(listener);
     protected final String                        myName;
 
     protected Peer(String name) {
         this.myName = name;
 
-        // Senders
-
-        tcpSend = new Thread(sendTcp);
-        this.sendTcpQueue = sendTcp.getQueue();
-        tcpSend.start();
-
-        multiSend = new Thread(sendMulti);
-        this.sendMultiQueue = sendMulti.getQueue();
-        multiSend.start();
-
         // Receivers
 
-        tcpRecv = new Thread(recvTcp);
-        tcpRecv.start();
+        tcpRecvThread = new Thread(runnableRecvTcp, "recvTcp");
+        tcpRecvThread.start();
 
-        multiRecv = new Thread(recvMulti);
-        multiRecv.start();
+        multiRecvThread = new Thread(runnableRecvMulti, "recvMulti");
+        multiRecvThread.start();
+
+        // Senders
+
+        tcpSendThread = new Thread(runnableSendTcp, "sendTcp");
+        sendTcpQueue = runnableSendTcp.getQueue();
+        tcpSendThread.start();
+
+        multiSendThread = new Thread(runnableSendMulti, "sendMulti");
+        sendMultiQueue = runnableSendMulti.getQueue();
+        multiSendThread.start();
     }
 
     public void shutdown() throws InterruptedException {
@@ -137,23 +137,27 @@ public abstract class Peer {
 
         // Senders
 
-        multiSend.interrupt();
-        multiSend.join();
+        multiSendThread.interrupt();
+        multiSendThread.join();
 
-        tcpSend.interrupt();
-        tcpSend.join();
+        tcpSendThread.interrupt();
+        tcpSendThread.join();
 
         // Receivers
 
-        tcpRecv.interrupt();
-        tcpRecv.join();
+        tcpRecvThread.interrupt();
+        tcpRecvThread.join();
 
-        multiRecv.interrupt();
-        multiRecv.join();
+        multiRecvThread.interrupt();
+        multiRecvThread.join();
     }
 
     public String getName() {
         return myName;
+    }
+
+    public boolean isReady() {
+        return (runnableRecvTcp.isReady() && runnableSendTcp.isReady() && runnableRecvMulti.isReady() && runnableSendMulti.isReady());
     }
 
     /** Get encoded public key **/
@@ -161,7 +165,7 @@ public abstract class Peer {
 
     private void sendWhois(String who) {
         final byte[] msg = getWhoisMsg(who);
-        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), EVERY_ONE, recvMulti.getHost(), recvMulti.getPort(), NO_SIG, msg);
+        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), EVERY_ONE, runnableRecvMulti.getHost(), runnableRecvMulti.getPort(), NO_SIG, msg);
         sendMultiQueue.add(data);
     }
 
@@ -175,7 +179,7 @@ public abstract class Peer {
 
     private void sendIam() {
         final byte[] msg = getIamMsg(getPublicKey());
-        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), EVERY_ONE, recvMulti.getHost(), recvMulti.getPort(), NO_SIG, msg);
+        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), EVERY_ONE, runnableRecvMulti.getHost(), runnableRecvMulti.getPort(), NO_SIG, msg);
         sendMultiQueue.add(data);
     }
 
@@ -208,7 +212,7 @@ public abstract class Peer {
 
         final byte[] msg = getCoinMsg(coin);
         final byte[] sig = signMsg(msg);
-        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
         sendTcpQueue.add(data);
     }
 
@@ -247,7 +251,7 @@ public abstract class Peer {
 
         final byte[] msg = getCoinAck(coin);
         final byte[] sig = signMsg(msg);
-        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
         sendTcpQueue.add(data);
     }
 
@@ -281,7 +285,7 @@ public abstract class Peer {
     protected void sendTransaction(Transaction trans, Data d) {
         final byte[] msg = getTransactionMsg(trans);
         final byte[] sig = signMsg(msg);
-        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), d.from, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), d.from, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
         sendTcpQueue.add(data);
     }
 
@@ -298,7 +302,7 @@ public abstract class Peer {
     protected void sendValidation(Transaction trans) {
         final byte[] msg = getValidationMsg(trans);
         final byte[] sig = signMsg(msg);
-        final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), EVERY_ONE, recvMulti.getHost(), recvMulti.getPort(), sig, msg);
+        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), EVERY_ONE, runnableRecvMulti.getHost(), runnableRecvMulti.getPort(), sig, msg);
         sendMultiQueue.add(data);
     }
 
@@ -351,7 +355,7 @@ public abstract class Peer {
             final Data d = peers.get(to); // Do not use the data object in the queue object
             final byte[] msg = getCoinMsg(q.coin);
             final byte[] sig = signMsg(msg);
-            final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+            final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
             sendTcpQueue.add(data);
         }
     }
