@@ -133,8 +133,8 @@ public class CoinExchangerTest {
         Assert.assertTrue(p3.getBlockChain().getBalance(p3.getName())==-4);
     }
 
-    @Test//(timeout=1000)
-    public void testBashHashCoin() throws InterruptedException {
+    @Test(timeout=1000)
+    public void testBadHash() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";
         DupCoinExchanger p1 = new DupCoinExchanger(n1);

@@ -283,7 +283,7 @@ public abstract class Peer {
     protected void sendTransaction(Transaction trans) {
         final byte[] msg = getTransactionMsg(trans);
         final byte[] sig = signMsg(msg);
-        // TODO: Check to TCP
+        // TODO: Change to TCP
         final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), sig, msg);
         sendMultiQueue.add(data);
     }
@@ -310,7 +310,6 @@ public abstract class Peer {
         if (trans.getIsValid()) {
             // Yey! we got a validation from the community
             handleValidation(trans);
-
             return;
         }
 
@@ -319,11 +318,11 @@ public abstract class Peer {
         if (from.equals(myName))
             return;
 
-        HashStatus status = checkTransaction(from, trans, data.signature.array(), data.data.array());
+        final HashStatus status = checkTransaction(from, trans, data.signature.array(), data.data.array());
         if (status != HashStatus.SUCCESS)
             return;
 
-        // Hash looks good to me, ask everyone else
+        // Hash looks good to me, let everyone know
         trans.setIsValid(true);
         sendValidation(trans);
     }

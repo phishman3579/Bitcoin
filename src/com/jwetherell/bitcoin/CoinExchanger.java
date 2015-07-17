@@ -150,11 +150,13 @@ public class CoinExchanger extends Peer {
 
     @Override
     protected HashStatus checkTransaction(String from, Transaction trans, byte[] signature, byte[] bytes) {
+        // TODO: Check the signature
         return blockChain.checkTransaction(trans);       
     }
 
     @Override
     protected void handleValidation(Transaction trans) {
+        // TODO: Check the signature
         blockChain.addTransaction(trans);       
     }
 
