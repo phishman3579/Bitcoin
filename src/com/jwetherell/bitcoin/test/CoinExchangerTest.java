@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import com.jwetherell.bitcoin.CoinExchanger;
 import com.jwetherell.bitcoin.data_model.Coin;
+import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class CoinExchangerTest {
@@ -57,7 +58,7 @@ public class CoinExchangerTest {
         Assert.assertTrue(p3.getBlockChain().getBalance(p3.getName())==2);
     }
 
-    @Test(timeout=1000)
+    @Test//(timeout=1000)
     public void testCoinExchangers2() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";
@@ -153,10 +154,12 @@ public class CoinExchangerTest {
         }
 
         // This has a bad hash
-        final Coin coin = new Coin(n1, n2, "Please reject me!", 10);
-        final byte[] hash = "This is a VERY bad hash".getBytes();
-        Transaction trans = new Transaction(hash, coin);
-        p1.sendTransaction(trans);
+        Coin coin = new Coin(n1, n2, "Please reject me!", 10);
+        byte[] hash = "This is a VERY bad hash".getBytes();
+        Transaction trans = new Transaction(n1, hash, coin);
+        // Dummy data object, only care about the dest host and port
+        Data data = new Data(p1.getHost(), p1.getPort(), p2.getHost(), p2.getPort(), "".getBytes(), "".getBytes());
+        p1.sendTransaction(trans, data);
 
         Thread.yield();
 
@@ -183,9 +186,17 @@ public class CoinExchangerTest {
             super(name);
         }
 
+        public String getHost() {
+            return recvTcp.getHost();
+        }
+
+        public int getPort() {
+            return recvTcp.getPort();
+        }
+
         /** Really only here to open up the method for JUnits **/
-        protected void sendTransaction(Transaction trans) {
-            super.sendTransaction(trans);
+        public void sendTransaction(Transaction trans, Data data) {
+            super.sendTransaction(trans, data);
         }
     }
 

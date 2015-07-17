@@ -25,24 +25,24 @@ public abstract class Peer {
 
     protected static enum KeyStatus { NO_PUBLIC_KEY, BAD_SIGNATURE, SUCCESS };
 
-    protected static final boolean              DEBUG           = Boolean.getBoolean("debug");
+    protected static final boolean                DEBUG           = Boolean.getBoolean("debug");
 
-    private static final int                    HEADER_LENGTH   = 12;
-    private static final String                 WHOIS_MSG       = "Who is      ";
-    private static final String                 IAM_MSG         = "I am        ";
-    private static final String                 COIN_MSG        = "Coin        ";
-    private static final String                 COIN_ACK        = "Coin ACK    ";
-    private static final String                 TRANSACTION     = "Transaction ";
-    private static final String                 VALIDATION      = "Validate    ";
+    private static final int                      HEADER_LENGTH   = 12;
+    private static final String                   WHOIS_MSG       = "Who is      ";
+    private static final String                   IAM_MSG         = "I am        ";
+    private static final String                   COIN_MSG        = "Coin        ";
+    private static final String                   COIN_ACK        = "Coin ACK    ";
+    private static final String                   TRANSACTION     = "Transaction ";
+    private static final String                   VALIDATION      = "Validate    ";
 
-    private static final int                    NAME_LENGTH     = 4;
+    private static final int                      NAME_LENGTH     = 4;
 
-    private static final byte[]                 NO_SIG          = new byte[0];
+    private static final byte[]                   NO_SIG          = new byte[0];
 
-    private final TCP.Peer.RunnableSend         sendTcp         = new TCP.Peer.RunnableSend();
-    private final Multicast.Peer.RunnableSend   sendMulti       = new Multicast.Peer.RunnableSend();
+    private final TCP.Peer.RunnableSend           sendTcp         = new TCP.Peer.RunnableSend();
+    private final Multicast.Peer.RunnableSend     sendMulti       = new Multicast.Peer.RunnableSend();
 
-    private final Listener                      listener        = new Listener() {
+    private final Listener                        listener        = new Listener() {
         /**
          * {@inheritDoc}
          */
@@ -78,26 +78,25 @@ public abstract class Peer {
         }
     };
 
-    private final TCP.Peer.RunnableRecv         recvTcp         = new TCP.Peer.RunnableRecv(listener);
-    private final Multicast.Peer.RunnableRecv   recvMulti       = new Multicast.Peer.RunnableRecv(listener);
-
     // Keep track of everyone's name -> ip+port
-    private final Map<String,Data>              peers           = new ConcurrentHashMap<String,Data>();
+    private final Map<String,Data>                peers           = new ConcurrentHashMap<String,Data>();
 
     // Pending msgs (happens if we don't know the ip+port OR the public key of a host
-    private final Map<String,List<Queued>>      coinsToSend     = new ConcurrentHashMap<String,List<Queued>>();
-    private final Map<String,List<Queued>>      coinsToRecv     = new ConcurrentHashMap<String,List<Queued>>();
+    private final Map<String,List<Queued>>        coinsToSend     = new ConcurrentHashMap<String,List<Queued>>();
+    private final Map<String,List<Queued>>        coinsToRecv     = new ConcurrentHashMap<String,List<Queued>>();
 
-    private final Thread                        tcpSend;
-    private final Thread                        tcpRecv;
-    private final Thread                        multiSend;
-    private final Thread                        multiRecv;
+    private final Thread                          tcpSend;
+    private final Thread                          tcpRecv;
+    private final Thread                          multiSend;
+    private final Thread                          multiRecv;
 
     // Thread safe queues for sending messages
-    private final Queue<Data>                   sendTcpQueue;
-    private final Queue<Data>                   sendMultiQueue;
+    private final Queue<Data>                     sendTcpQueue;
+    private final Queue<Data>                     sendMultiQueue;
 
-    protected final String                      myName;
+    protected final TCP.Peer.RunnableRecv         recvTcp         = new TCP.Peer.RunnableRecv(listener);
+    protected final Multicast.Peer.RunnableRecv   recvMulti       = new Multicast.Peer.RunnableRecv(listener);
+    protected final String                        myName;
 
     protected Peer(String name) {
         this.myName = name;
@@ -176,10 +175,6 @@ public abstract class Peer {
         final String name = parseIamMsgForName(bytes);
         final byte[] key = parseIamMsgForKey(bytes);
 
-        // Ignore your own iam msg
-        if (name.equals(this.myName))
-            return name;
-
         // Add peer
         peers.put(name, data);
 
@@ -195,7 +190,10 @@ public abstract class Peer {
     /** Sign message with private key **/
     protected abstract byte[] signMsg(byte[] bytes);
 
-    /** send coin to the peer named 'to' **/
+    /** Verify the bytes given the public key and signature **/
+    protected abstract boolean verifyMsg(byte[] publicKey, byte[] signature, byte[] bytes);
+
+    /** Send coin to the peer named 'to' **/
     protected void sendCoin(String to, Coin coin) {
         final Data d = peers.get(to);
         if (d == null){
@@ -231,9 +229,6 @@ public abstract class Peer {
         // Send an ACK msg
         ackCoin(from, coin);
     }
-
-    /** Verify the bytes given the public key and signature **/
-    protected abstract boolean verifyMsg(byte[] publicKey, byte[] signature, byte[] bytes);
 
     /** What do you want to do now that you have received a coin, return false if the public key is unknown **/
     protected abstract KeyStatus handleCoin(String from, Coin coin, byte[] sig, byte[] bytes);
@@ -271,7 +266,7 @@ public abstract class Peer {
         }
 
         final Transaction trans = getTransaction(coin);
-        sendTransaction(trans);
+        sendTransaction(trans, data);
     }
 
     /** What do you want to do now that you received an ACK for a sent coin, return false if the public key is unknown **/
@@ -280,17 +275,17 @@ public abstract class Peer {
     /** Create a transaction given the this coin **/
     protected abstract Transaction getTransaction(Coin coin);
     
-    protected void sendTransaction(Transaction trans) {
+    protected void sendTransaction(Transaction trans, Data d) {
+        trans.from = myName; // set to my name, because I am the one who signed it
         final byte[] msg = getTransactionMsg(trans);
         final byte[] sig = signMsg(msg);
-        // TODO: Change to TCP
-        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), sig, msg);
-        sendMultiQueue.add(data);
+        final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+        sendTcpQueue.add(data);
     }
 
     private void handleTransaction(byte[] bytes, Data data) {
         final Transaction trans = parseTransactionMsg(bytes);
-        HashStatus status = checkTransaction(trans.getCoin().from, trans, data.signature.array(), data.data.array());
+        final HashStatus status = checkTransaction(trans.from, trans, data.signature.array(), data.data.array());
         if (status != HashStatus.SUCCESS)
             return;
 
@@ -299,6 +294,7 @@ public abstract class Peer {
     }
 
     protected void sendValidation(Transaction trans) {
+        trans.from = myName; // set to my name, because I am the one who signed it
         final byte[] msg = getValidationMsg(trans);
         final byte[] sig = signMsg(msg);
         final Data data = new Data(recvTcp.getHost(), recvTcp.getPort(), recvMulti.getHost(), recvMulti.getPort(), sig, msg);
@@ -309,12 +305,12 @@ public abstract class Peer {
         final Transaction trans = parseValidationMsg(bytes);
         if (trans.getIsValid()) {
             // Yey! we got a validation from the community
-            handleValidation(trans);
+            handleValidation(trans.from, trans, data.signature.array(), data.data.array());
             return;
         }
 
         // Don't validate my own transaction
-        final String from = trans.getCoin().from;
+        final String from = trans.from;
         if (from.equals(myName))
             return;
 
@@ -331,7 +327,7 @@ public abstract class Peer {
     protected abstract HashStatus checkTransaction(String from, Transaction trans, byte[] signature, byte[] bytes);
 
     /** What do you want to do now that you received a valid transaction **/
-    protected abstract void handleValidation(Transaction trans);
+    protected abstract HashStatus handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes);
 
     private void addCoinToSend(boolean isAck, String to, Coin c) {
         final Queued q = new Queued(isAck, c, null);

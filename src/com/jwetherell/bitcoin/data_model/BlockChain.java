@@ -28,13 +28,13 @@ public class BlockChain {
 
     public BlockChain() { }
 
-    public synchronized Transaction getNextTransaction(Coin coin) {
+    public synchronized Transaction getNextTransaction(String from, Coin coin) {
         final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
         coin.toBuffer(buffer);
         final byte[] bytes = buffer.array();
 
         final byte[] nextHash = getNextHash(hash, bytes);
-        return (new Transaction(nextHash, coin));
+        return (new Transaction(from, nextHash, coin));
     }
 
     public synchronized HashStatus checkTransaction(Transaction trans) {

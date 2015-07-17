@@ -76,7 +76,7 @@ public class CoinExchanger extends Peer {
 
     @Override
     protected Transaction getTransaction(Coin coin) {
-        return blockChain.getNextTransaction(coin);
+        return blockChain.getNextTransaction(myName, coin);
     }
 
     @Override
@@ -150,14 +150,30 @@ public class CoinExchanger extends Peer {
 
     @Override
     protected HashStatus checkTransaction(String from, Transaction trans, byte[] signature, byte[] bytes) {
-        // TODO: Check the signature
+        if (!publicKeys.containsKey(from))
+            return HashStatus.BAD_KEY;
+
+        final byte[] key = publicKeys.get(from).array();
+        if (!verifyMsg(key, signature, bytes)) {
+            System.err.println("checkTransaction() trans NOT verified. trans="+trans.toString());
+            return HashStatus.BAD_KEY;
+        }
+
         return blockChain.checkTransaction(trans);       
     }
 
     @Override
-    protected void handleValidation(Transaction trans) {
-        // TODO: Check the signature
-        blockChain.addTransaction(trans);       
+    protected HashStatus handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes) {
+        if (!publicKeys.containsKey(from))
+            return HashStatus.BAD_KEY;
+
+        final byte[] key = publicKeys.get(from).array();
+        if (!verifyMsg(key, signature, bytes)) {
+            System.err.println("handleValidation() trans NOT verified. trans="+trans.toString());
+            return HashStatus.BAD_KEY;
+        }
+
+        return blockChain.addTransaction(trans);       
     }
 
     /**
