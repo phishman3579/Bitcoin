@@ -10,10 +10,10 @@ public class ProofOfWorkTest {
 
     @Test
     public void test() {
-        final int numberOfZerosInPrefix = 2;
+        final int numberOfZerosInPrefix = 4;
         final byte[] sha256 = BlockChain.calculateSha256("Hello world!");
         final long nonce = ProofOfWork.solve(sha256, numberOfZerosInPrefix);
 
-        Assert.assertTrue(nonce==114);
+        Assert.assertTrue(ProofOfWork.check(sha256, nonce, numberOfZerosInPrefix));
     }
 }
