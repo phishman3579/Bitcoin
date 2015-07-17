@@ -159,8 +159,9 @@ public class CoinExchangerTest {
 
         // This has a bad hash
         Coin coin = new Coin(n1, n2, "Please reject me!", 10);
+        byte[] prev = "This is a bad hash".getBytes();
         byte[] hash = "This is a VERY bad hash".getBytes();
-        Transaction trans = new Transaction(n1, hash, coin);
+        Transaction trans = new Transaction(n1, prev, hash, coin);
         // Dummy data object, only care about the dest host and port
         Data data = new Data(p1.getName(), p1.getHost(), p1.getPort(), p2.getName(), p2.getHost(), p2.getPort(), "".getBytes(), "".getBytes());
         p1.sendTransaction(trans, data);

@@ -34,17 +34,17 @@ public class BlockChain {
         final byte[] bytes = buffer.array();
 
         final byte[] nextHash = getNextHash(hash, bytes);
-        return (new Transaction(from, nextHash, coin));
+        return (new Transaction(from, hash, nextHash, coin));
     }
 
     public synchronized HashStatus checkTransaction(Transaction trans) {
-        final Coin coin = trans.getCoin();
+        final Coin coin = trans.coin;
         final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
         coin.toBuffer(buffer);
         final byte[] bytes = buffer.array();
         final byte[] nextHash = getNextHash(hash, bytes);
 
-        final byte[] incomingHash = trans.getHash();
+        final byte[] incomingHash = trans.hash;
         if (!(Arrays.equals(incomingHash, nextHash))) {
             System.err.println("Invalid hash on transaction.");
             return HashStatus.BAD_HASH;
@@ -55,7 +55,7 @@ public class BlockChain {
 
     public synchronized HashStatus addTransaction(Transaction trans) {
         // Already processed this coin.
-        final Coin coin = trans.getCoin();
+        final Coin coin = trans.coin;
         if (transactions.contains(coin))
             return HashStatus.SUCCESS;
 

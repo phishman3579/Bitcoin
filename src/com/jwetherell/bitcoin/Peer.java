@@ -308,7 +308,7 @@ public abstract class Peer {
 
     private void handleValidation(byte[] bytes, Data data) {
         final Transaction trans = parseValidationMsg(bytes);
-        if (trans.getIsValid()) {
+        if (trans.isValid) {
             // Yey! we got a validation from the community
             handleValidation(data.from, trans, data.signature.array(), data.message.array());
             return;
@@ -324,7 +324,7 @@ public abstract class Peer {
             return;
 
         // Hash looks good to me, let everyone know
-        trans.setIsValid(true);
+        trans.isValid = true;
         sendValidation(trans);
     }
 

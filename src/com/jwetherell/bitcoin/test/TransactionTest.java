@@ -18,8 +18,9 @@ public class TransactionTest {
         int v = 1;
 
         Coin c1 = new Coin(f, t, m,v);
-        byte[] hash = "I am a hash!".getBytes();
-        Transaction trans1 = new Transaction(f,hash,c1);
+        byte[] prev = "I am a hash!".getBytes();
+        byte[] hash = "I am also a hash!".getBytes();
+        Transaction trans1 = new Transaction(f,prev,hash,c1);
         ByteBuffer b = ByteBuffer.allocate(trans1.getBufferLength());
         trans1.toBuffer(b);
 
