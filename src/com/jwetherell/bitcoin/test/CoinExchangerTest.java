@@ -18,7 +18,6 @@ public class CoinExchangerTest {
 
     // This may need to vary depending on the machine
     private static final int INIT_SLEEP     = 250;
-    private static final int BETWEEN_SENDS  = 150;
 
     @Test(timeout=5000)
     public void testBadSignature() throws InterruptedException {
