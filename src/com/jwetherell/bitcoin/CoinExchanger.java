@@ -127,7 +127,7 @@ public class CoinExchanger extends Peer {
 
         final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, signature, bytes)) {
-            System.err.println("handleCoin() coin NOT verified. coin="+coin.toString());
+            System.err.println("handleCoin() coin NOT verified. coin={\n"+coin.toString()+"\n}");
             return KeyStatus.BAD_SIGNATURE;
         }
 
@@ -141,7 +141,7 @@ public class CoinExchanger extends Peer {
 
         final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, signature, bytes)) {
-            System.err.println("handleCoinAck() coin NOT verified. coin="+coin.toString());
+            System.err.println("handleCoinAck() coin NOT verified. coin={\n"+coin.toString()+"\n}");
             return KeyStatus.BAD_SIGNATURE;
         }
 
@@ -155,7 +155,7 @@ public class CoinExchanger extends Peer {
 
         final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, signature, bytes)) {
-            System.err.println("checkTransaction() trans NOT verified. trans="+trans.toString());
+            System.err.println("checkTransaction() trans NOT verified. trans={\n"+trans.toString()+"\n}");
             return HashStatus.BAD_KEY;
         }
 
@@ -169,7 +169,7 @@ public class CoinExchanger extends Peer {
 
         final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, signature, bytes)) {
-            System.err.println("handleValidation() trans NOT verified. trans="+trans.toString());
+            System.err.println("handleValidation() trans NOT verified. trans={\n"+trans.toString()+"\n}");
             return HashStatus.BAD_KEY;
         }
 

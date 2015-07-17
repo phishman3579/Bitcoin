@@ -351,7 +351,7 @@ public abstract class Peer {
             final Data d = peers.get(to); // Do not use the data object in the queue object
             final byte[] msg = getCoinMsg(q.coin);
             final byte[] sig = signMsg(msg);
-            final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), d.from, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+            final Data data = new Data(myName, recvTcp.getHost(), recvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
             sendTcpQueue.add(data);
         }
     }
