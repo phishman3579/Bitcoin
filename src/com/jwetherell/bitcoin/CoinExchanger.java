@@ -25,7 +25,8 @@ import com.jwetherell.bitcoin.data_model.Transaction;
  */
 public class CoinExchanger extends Peer {
 
-    private static final int                    NUMBER_OF_ZEROS         = 2;
+    // Number of zeros in prefix of has to compute as the proof of work.
+    private static final int                    NUMBER_OF_ZEROS         = 1;
 
     private final KeyPairGenerator              gen;
     private final SecureRandom                  random;
