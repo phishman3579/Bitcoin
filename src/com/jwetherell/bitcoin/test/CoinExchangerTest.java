@@ -58,7 +58,7 @@ public class CoinExchangerTest {
         Assert.assertTrue(p3.getBlockChain().getBalance(p3.getName())==2);
     }
 
-    @Test//(timeout=1000)
+    @Test(timeout=1000)
     public void testCoinExchangers2() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";

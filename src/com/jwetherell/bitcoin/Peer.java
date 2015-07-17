@@ -1,11 +1,10 @@
 package com.jwetherell.bitcoin;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.jwetherell.bitcoin.data_model.BlockChain.HashStatus;
 import com.jwetherell.bitcoin.data_model.Coin;
@@ -91,8 +90,8 @@ public abstract class Peer {
     private final Map<String,Data>                peers           = new ConcurrentHashMap<String,Data>();
 
     // Pending msgs (happens if we don't know the ip+port OR the public key of a host
-    private final Map<String,List<Queued>>        coinsToSend     = new ConcurrentHashMap<String,List<Queued>>();
-    private final Map<String,List<Queued>>        coinsToRecv     = new ConcurrentHashMap<String,List<Queued>>();
+    private final Map<String,Queue<Queued>>        coinsToSend     = new ConcurrentHashMap<String,Queue<Queued>>();
+    private final Map<String,Queue<Queued>>        coinsToRecv     = new ConcurrentHashMap<String,Queue<Queued>>();
 
     private final Thread                          tcpSend;
     private final Thread                          tcpRecv;
@@ -333,20 +332,22 @@ public abstract class Peer {
 
     private void addCoinToSend(boolean isAck, String to, Coin c) {
         final Queued q = new Queued(isAck, c, null);
-        List<Queued> l = coinsToSend.get(to);
+        Queue<Queued> l = coinsToSend.get(to);
         if (l == null) {
-            l = new CopyOnWriteArrayList<Queued>();
+            l = new ConcurrentLinkedQueue<Queued>();
             coinsToSend.put(to, l);
         }
         l.add(q);
     }
 
     private void processCoinsToSend(String to) {
-        List<Queued> l = coinsToSend.get(to);
+        Queue<Queued> l = coinsToSend.get(to);
         if (l==null || l.size()==0)
             return;
         while (l.size()>0) {
-            final Queued q = l.remove(0);
+            final Queued q = l.poll();
+            if (q == null)
+                return;
             final Data d = peers.get(to); // Do not use the data object in the queue object
             final byte[] msg = getCoinMsg(q.coin);
             final byte[] sig = signMsg(msg);
@@ -357,20 +358,22 @@ public abstract class Peer {
 
     private void addCoinToRecv(boolean isAck, String from, Coin c, Data d) {
         final Queued q = new Queued(isAck, c, d);
-        List<Queued> lc = coinsToRecv.get(from);
+        Queue<Queued> lc = coinsToRecv.get(from);
         if (lc == null) {
-            lc = new CopyOnWriteArrayList<Queued>();
+            lc = new ConcurrentLinkedQueue<Queued>();
             coinsToRecv.put(from, lc);
         }
         lc.add(q);
     }
 
     private void processCoinsToRecv(String from) {
-        List<Queued> l = coinsToRecv.get(from);
+        Queue<Queued> l = coinsToRecv.get(from);
         if (l==null || l.size()==0)
             return;
         while (l.size()>0) {
-            final Queued q = l.remove(0);
+            final Queued q = l.poll();
+            if (q == null)
+                return;
             if (q.isAck)
                 handleCoinAck(from, q.coin, q.data);
             else
