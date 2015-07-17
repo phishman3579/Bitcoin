@@ -36,12 +36,12 @@ public class CoinExchangerTest {
         p1.sendCoin(n2,10);
         // p1=0, p2=0, p3=0
 
-        Thread.sleep(BETWEEN_SENDS);
+        while (p1.getBlockChain().getBalance(p1.getName())!=0 || p2.getBlockChain().getBalance(p2.getName())!=0 || p3.getBlockChain().getBalance(p3.getName())!=0) {
+            Thread.yield();
+        }
 
         p2.sendCoin(n3,2);
         // p1=0, p2=-2, p3=2
-
-        Thread.yield();
 
         while (p1.getBlockChain().getBalance(p1.getName())!=0 || p2.getBlockChain().getBalance(p2.getName())!=-2 || p3.getBlockChain().getBalance(p3.getName())!=2) {
             Thread.yield();
@@ -71,12 +71,12 @@ public class CoinExchangerTest {
         p1.sendCoin(n2, 3);
         // p1=-3, p2=3
 
-        Thread.sleep(BETWEEN_SENDS);
+        while (p1.getBlockChain().getBalance(p1.getName())!=-3 || p2.getBlockChain().getBalance(p2.getName())!=3) {
+            Thread.yield();
+        }
 
         p2.sendCoin(n1, 7);
         // p1=4, p2=-7
-
-        Thread.yield();
 
         while (p1.getBlockChain().getBalance(p1.getName())!=4 || p2.getBlockChain().getBalance(p2.getName())!=-4) {
             Thread.yield();
@@ -106,17 +106,19 @@ public class CoinExchangerTest {
         p1.sendCoin(n2, 3);
         // p1=-3, p2=3, p3=0
 
-        Thread.sleep(BETWEEN_SENDS);
+        while (p1.getBlockChain().getBalance(p1.getName())!=-3 || p2.getBlockChain().getBalance(p2.getName())!=3 || p3.getBlockChain().getBalance(p3.getName())!=0) {
+            Thread.yield();
+        }
 
         p2.sendCoin(n3, 7);
         // p1=-3, p2=-4, p3=7
 
-        Thread.sleep(BETWEEN_SENDS);
+        while (p1.getBlockChain().getBalance(p1.getName())!=-3 || p2.getBlockChain().getBalance(p2.getName())!=-4 || p3.getBlockChain().getBalance(p3.getName())!=7) {
+            Thread.yield();
+        }
 
         p3.sendCoin(n1, 11);
         // p1=8, p2=-4, p3=-4
-
-        Thread.yield();
 
         while (p1.getBlockChain().getBalance(p1.getName())!=8 || p2.getBlockChain().getBalance(p2.getName())!=-4 || p3.getBlockChain().getBalance(p3.getName())!=-4) {
             Thread.yield();
@@ -147,8 +149,6 @@ public class CoinExchangerTest {
         // Send coin
         p1.sendCoin(n2,10);
 
-        Thread.yield();
-
         while (p1.getBlockChain().getBalance(p1.getName())!=-10 && p2.getBlockChain().getBalance(p2.getName())!=10) {
             Thread.yield();
         }
@@ -161,12 +161,12 @@ public class CoinExchangerTest {
         Data data = new Data(p1.getName(), p1.getHost(), p1.getPort(), p2.getName(), p2.getHost(), p2.getPort(), "".getBytes(), "".getBytes());
         p1.sendTransaction(trans, data);
 
-        Thread.yield();
+        while (p1.getBlockChain().getBalance(p1.getName())!=-10 && p2.getBlockChain().getBalance(p2.getName())!=10) {
+            Thread.yield();
+        }
 
         // This should be accepted
         p1.sendCoin(n2,20);
-
-        Thread.yield();
 
         while (p2.getBlockChain().getBalance(p2.getName())!=30) {
             Thread.yield();

@@ -97,7 +97,7 @@ public class Transaction {
         builder.append("isValid=").append(isValid).append("\n");
         builder.append("coin={").append("\n");
         builder.append(coin.toString()).append("\n");
-        builder.append("}\n");
+        builder.append("}");
         return builder.toString();
     }
 }

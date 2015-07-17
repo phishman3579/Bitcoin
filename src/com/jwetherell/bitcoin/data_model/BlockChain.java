@@ -113,19 +113,6 @@ public class BlockChain {
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
-        StringBuilder builder = new StringBuilder();
-        builder.append("Transactions={").append("\n");
-        for (Coin c : transactions)
-            builder.append('\t').append(c.value).append(" from ").append(c.from).append(" to ").append(c.to).append("\n");
-        builder.append("}");
-        return builder.toString();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public boolean equals(Object o) {
         if (!(o instanceof BlockChain))
             return false;
@@ -135,5 +122,17 @@ public class BlockChain {
                 return false;
         }
         return true;
+    }
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Transactions={").append("\n");
+        for (Coin c : transactions)
+            builder.append('\t').append(c.value).append(" from ").append(c.from).append(" to ").append(c.to).append("\n");
+        builder.append("}");
+        return builder.toString();
     }
 }
