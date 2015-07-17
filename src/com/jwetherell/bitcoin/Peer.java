@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import com.jwetherell.bitcoin.data_model.BlockChain.HashStatus;
 import com.jwetherell.bitcoin.data_model.Coin;
 import com.jwetherell.bitcoin.data_model.Data;
+import com.jwetherell.bitcoin.data_model.ProofOfWork;
 import com.jwetherell.bitcoin.data_model.Transaction;
 import com.jwetherell.bitcoin.interfaces.Listener;
 import com.jwetherell.bitcoin.interfaces.Receiver;
@@ -310,6 +311,14 @@ public abstract class Peer {
         final Transaction trans = parseValidationMsg(bytes);
         if (trans.isValid) {
             // Yey! we got a validation from the community
+
+            // Let's see if the nonce was computed correctly
+            boolean nonceComputedCorrectly = ProofOfWork.check(trans.hash, trans.nonce, trans.numberOfZeros);
+            if (!nonceComputedCorrectly) {
+                System.err.println("Nonce was not computed correctly. trans={\n"+trans.toString()+"\n}");
+                return;
+            }
+
             handleValidation(data.from, trans, data.signature.array(), data.message.array());
             return;
         }
@@ -323,8 +332,12 @@ public abstract class Peer {
         if (status != HashStatus.SUCCESS)
             return;
 
-        // Hash looks good to me, let everyone know
+        // Let's mine this sucker.
+        long nonce = mining(trans.hash, trans.numberOfZeros);
+
+        // Hash looks good to me and I have computed a nonce, let everyone know
         trans.isValid = true;
+        trans.nonce = nonce;
         sendValidation(trans);
     }
 
@@ -333,6 +346,9 @@ public abstract class Peer {
 
     /** What do you want to do now that you received a valid transaction, return the HashStatus **/
     protected abstract HashStatus handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes);
+
+    /** Mine the nonce sent in the transaction **/
+    protected abstract long mining(byte[] sha256, long numberOfZerosInPrefix);
 
     // synchronized to protected coinsToSend from changing while processing    
     private synchronized void addCoinToSend(boolean isAck, String to, Coin c) {

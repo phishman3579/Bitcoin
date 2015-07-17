@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.jwetherell.bitcoin.data_model.BlockChain;
 import com.jwetherell.bitcoin.data_model.BlockChain.HashStatus;
 import com.jwetherell.bitcoin.data_model.Coin;
+import com.jwetherell.bitcoin.data_model.ProofOfWork;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
 /**
@@ -23,6 +24,8 @@ import com.jwetherell.bitcoin.data_model.Transaction;
  * Thread-Safe (Hopefully)
  */
 public class CoinExchanger extends Peer {
+
+    private static final int                    NUMBER_OF_ZEROS         = 2;
 
     private final KeyPairGenerator              gen;
     private final SecureRandom                  random;
@@ -82,7 +85,12 @@ public class CoinExchanger extends Peer {
      */
     @Override
     protected Transaction getNextTransaction(Coin coin) {
-        return blockChain.getNextTransaction(myName, coin);
+        Transaction trans = blockChain.getNextTransaction(myName, coin);
+        // Need to be validated
+        trans.isValid = false;
+        // Number of zeros in prefix of hash to compute
+        trans.numberOfZeros = NUMBER_OF_ZEROS;
+        return trans;
     }
 
     /**
@@ -148,6 +156,11 @@ public class CoinExchanger extends Peer {
             return KeyStatus.BAD_SIGNATURE;
 
         return KeyStatus.SUCCESS;
+    }
+
+    /** Mine the nonce sent in the transaction **/
+    protected long mining(byte[] sha256, long numberOfZerosInPrefix) {
+        return ProofOfWork.solve(sha256, numberOfZerosInPrefix);
     }
 
     /**

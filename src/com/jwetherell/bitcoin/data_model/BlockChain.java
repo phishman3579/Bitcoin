@@ -137,6 +137,7 @@ public class BlockChain {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
+        builder.append("hash=[").append(BlockChain.bytesToHex(hash)).append("]\n");
         builder.append("Transactions={").append("\n");
         for (Coin c : transactions)
             builder.append('\t').append(c.value).append(" from ").append(c.from).append(" to ").append(c.to).append("\n");

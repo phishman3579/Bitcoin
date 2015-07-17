@@ -5,10 +5,14 @@ import java.util.Arrays;
 
 public class Transaction {
 
-    private static final int    BOOLEAN_LENGTH  = 2;
-    private static final int    LENGTH_LENGTH   = 4;
+    private static final int    BOOLEAN_LENGTH          = 2;
+    private static final int    NUM_OF_ZEROS_LENGTH     = 4;
+    private static final int    NONCE_LENGTH            = 8;
+    private static final int    LENGTH_LENGTH           = 4;
 
     public boolean              isValid         = false;
+    public int                  numberOfZeros;
+    public long                 nonce;
     public Coin                 coin;
     public byte[]               prev;
     public byte[]               hash;
@@ -27,6 +31,8 @@ public class Transaction {
 
     public int getBufferLength() {
         return  BOOLEAN_LENGTH + 
+                NUM_OF_ZEROS_LENGTH +
+                NONCE_LENGTH +
                 LENGTH_LENGTH + prev.length + 
                 LENGTH_LENGTH + hash.length + 
                 coin.getBufferLength();
@@ -34,6 +40,8 @@ public class Transaction {
 
     public void toBuffer(ByteBuffer buffer) {
         buffer.putChar(getBoolean(isValid));
+        buffer.putInt(numberOfZeros);
+        buffer.putLong(nonce);
 
         buffer.putInt(prev.length);
         buffer.put(prev);
@@ -46,6 +54,8 @@ public class Transaction {
 
     public void fromBuffer(ByteBuffer buffer) {
         isValid = parseBoolean(buffer.getChar());
+        numberOfZeros = buffer.getInt();
+        nonce = buffer.getLong();
 
         {
             final int length = buffer.getInt();
@@ -80,6 +90,10 @@ public class Transaction {
         Transaction c = (Transaction) o;
         if (isValid != c.isValid)
             return false;
+        if (nonce != c.nonce)
+            return false;
+        if (numberOfZeros != c.numberOfZeros)
+            return false;
         if (!(c.coin.equals(this.coin)))
             return false;
         if (!(Arrays.equals(c.prev, prev)))
@@ -96,6 +110,10 @@ public class Transaction {
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("isValid=").append(isValid).append("\n");
+        builder.append("numberOfZerosToCompute=").append(numberOfZeros).append("\n");
+        builder.append("nonce=").append(nonce).append("\n");
+        builder.append("prev=[").append(BlockChain.bytesToHex(prev)).append("]\n");
+        builder.append("hash=[").append(BlockChain.bytesToHex(hash)).append("]\n");
         builder.append("coin={").append("\n");
         builder.append(coin.toString()).append("\n");
         builder.append("}");
