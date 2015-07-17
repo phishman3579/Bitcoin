@@ -18,9 +18,9 @@ public class CoinExchangerTest {
 
     // This may need to vary depending on the machine
     private static final int INIT_SLEEP     = 250;
-    private static final int BETWEEN_SENDS  = 25;
+    private static final int BETWEEN_SENDS  = 150;
 
-    @Test(timeout=1000)
+    @Test(timeout=5000)
     public void testBadSignature() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";
@@ -58,7 +58,7 @@ public class CoinExchangerTest {
         Assert.assertTrue(p3.getBlockChain().getBalance(p3.getName())==2);
     }
 
-    @Test(timeout=1000)
+    @Test(timeout=5000)
     public void testCoinExchangers2() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";
@@ -91,7 +91,7 @@ public class CoinExchangerTest {
         Assert.assertTrue(p2.getBlockChain().getBalance(p2.getName())==-4);
     }
 
-    @Test(timeout=1000)
+    @Test(timeout=5000)
     public void testCoinExchangers3() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";
@@ -134,7 +134,7 @@ public class CoinExchangerTest {
         Assert.assertTrue(p3.getBlockChain().getBalance(p3.getName())==-4);
     }
 
-    @Test(timeout=1000)
+    @Test(timeout=5000)
     public void testBadHash() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";
