@@ -233,7 +233,7 @@ public class CoinExchangerTest {
         }
 
         @Override
-        protected synchronized byte[] signMsg(byte[] bytes) {
+        protected byte[] signMsg(byte[] bytes) {
             byte[] signed = null;
             try {
                 enc.update(bytes);

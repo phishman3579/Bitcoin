@@ -90,8 +90,8 @@ public abstract class Peer {
     private final Map<String,Data>                peers                   = new ConcurrentHashMap<String,Data>();
 
     // Pending msgs (happens if we don't know the ip+port OR the public key of a host
-    private final Map<String,Queue<Queued>>        coinsToSend            = new ConcurrentHashMap<String,Queue<Queued>>();
-    private final Map<String,Queue<Queued>>        coinsToRecv            = new ConcurrentHashMap<String,Queue<Queued>>();
+    private final Map<String,Queue<Queued>>       coinsToSend             = new ConcurrentHashMap<String,Queue<Queued>>();
+    private final Map<String,Queue<Queued>>       coinsToRecv             = new ConcurrentHashMap<String,Queue<Queued>>();
 
     private final Thread                          tcpSendThread;
     private final Thread                          tcpRecvThread;
@@ -237,7 +237,7 @@ public abstract class Peer {
         ackCoin(from, coin);
     }
 
-    /** What do you want to do now that you have received a coin, return false if the public key is unknown **/
+    /** What do you want to do now that you have received a coin, return the KeyStatus **/
     protected abstract KeyStatus handleCoin(String from, Coin coin, byte[] sig, byte[] bytes);
 
     private void ackCoin(String to, Coin coin) {
@@ -272,15 +272,15 @@ public abstract class Peer {
             return;
         }
 
-        final Transaction trans = getTransaction(coin);
+        final Transaction trans = getNextTransaction(coin);
         sendTransaction(trans, data);
     }
 
-    /** What do you want to do now that you received an ACK for a sent coin, return false if the public key is unknown **/
+    /** What do you want to do now that you received an ACK for a sent coin, return the KeyStatus **/
     protected abstract KeyStatus handleCoinAck(String from, Coin coin, byte[] sig, byte[] bytes);
 
     /** Create a transaction given the this coin **/
-    protected abstract Transaction getTransaction(Coin coin);
+    protected abstract Transaction getNextTransaction(Coin coin);
     
     protected void sendTransaction(Transaction trans, Data d) {
         final byte[] msg = getTransactionMsg(trans);
@@ -328,13 +328,14 @@ public abstract class Peer {
         sendValidation(trans);
     }
 
-    /** What do you want to do now that you received an transaction **/
+    /** What do you want to do now that you received an transaction, return the HashStatus **/
     protected abstract HashStatus checkTransaction(String from, Transaction trans, byte[] signature, byte[] bytes);
 
-    /** What do you want to do now that you received a valid transaction **/
+    /** What do you want to do now that you received a valid transaction, return the HashStatus **/
     protected abstract HashStatus handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes);
 
-    private void addCoinToSend(boolean isAck, String to, Coin c) {
+    // synchronized to protected coinsToSend from changing while processing    
+    private synchronized void addCoinToSend(boolean isAck, String to, Coin c) {
         final Queued q = new Queued(isAck, c, null);
         Queue<Queued> l = coinsToSend.get(to);
         if (l == null) {
@@ -344,7 +345,8 @@ public abstract class Peer {
         l.add(q);
     }
 
-    private void processCoinsToSend(String to) {
+    // synchronized to protected coinsToSend from changing while processing    
+    private synchronized void processCoinsToSend(String to) {
         Queue<Queued> l = coinsToSend.get(to);
         if (l==null || l.size()==0)
             return;
@@ -360,7 +362,8 @@ public abstract class Peer {
         }
     }
 
-    private void addCoinToRecv(boolean isAck, String from, Coin c, Data d) {
+    // synchronized to protected coinsToRecv from changing while processing    
+    private synchronized void addCoinToRecv(boolean isAck, String from, Coin c, Data d) {
         final Queued q = new Queued(isAck, c, d);
         Queue<Queued> lc = coinsToRecv.get(from);
         if (lc == null) {
@@ -370,7 +373,8 @@ public abstract class Peer {
         lc.add(q);
     }
 
-    private void processCoinsToRecv(String from) {
+    // synchronized to protected coinsToRecv from changing while processing    
+    private synchronized void processCoinsToRecv(String from) {
         Queue<Queued> l = coinsToRecv.get(from);
         if (l==null || l.size()==0)
             return;

@@ -69,24 +69,37 @@ public class CoinExchanger extends Peer {
         return blockChain;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected byte[] getPublicKey() {
         return bPublicKey;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    protected Transaction getTransaction(Coin coin) {
+    protected Transaction getNextTransaction(Coin coin) {
         return blockChain.getNextTransaction(myName, coin);
     }
 
+    /**
+     * {@inheritDoc}
+     * 
+     * synchronized to protect publicKeys from changing while processing
+     */
     @Override
-    protected void newPublicKey(String name, byte[] publicKey) {
-        // Copy and store the key
-        final byte[] copy = new byte[publicKey.length];
-        System.arraycopy(publicKey, 0, copy, 0, publicKey.length);
-        publicKeys.put(name, ByteBuffer.wrap(copy));
+    protected synchronized void newPublicKey(String name, byte[] publicKey) {
+        publicKeys.put(name, ByteBuffer.wrap(publicKey));
     }
 
+    /**
+     * {@inheritDoc}
+     * 
+     * synchronized to protect enc from changing while processing
+     */
     @Override
     protected synchronized byte[] signMsg(byte[] bytes) {
         byte[] signed = null;
@@ -99,6 +112,11 @@ public class CoinExchanger extends Peer {
         return signed;
     }
 
+    /**
+     * {@inheritDoc}
+     * 
+     * synchronized to protect dec from changing while processing
+     */
     @Override
     protected synchronized boolean verifyMsg(byte[] publicKey, byte[] signature, byte[] bytes) {
         boolean verified = false;
@@ -120,57 +138,69 @@ public class CoinExchanger extends Peer {
         super.sendCoin(name, coin);
     }
 
+    // synchronized to protect publicKeys from changing while processing
+    private synchronized KeyStatus checkKey(String from, byte[] signature, byte[] bytes) {
+        if (!publicKeys.containsKey(from))
+            return KeyStatus.NO_PUBLIC_KEY;
+
+        final byte[] key = publicKeys.get(from).array();
+        if (!verifyMsg(key, signature, bytes))
+            return KeyStatus.BAD_SIGNATURE;
+
+        return KeyStatus.SUCCESS;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected KeyStatus handleCoin(String from, Coin coin, byte[] signature, byte[] bytes) {
-        if (!publicKeys.containsKey(from))
-            return KeyStatus.NO_PUBLIC_KEY;
-
-        final byte[] key = publicKeys.get(from).array();
-        if (!verifyMsg(key, signature, bytes)) {
+        final KeyStatus status = checkKey(from, signature, bytes);
+        if (status != KeyStatus.SUCCESS) {
             System.err.println("handleCoin() coin NOT verified. coin={\n"+coin.toString()+"\n}");
-            return KeyStatus.BAD_SIGNATURE;
+            return status;
         }
 
         return KeyStatus.SUCCESS;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected KeyStatus handleCoinAck(String from, Coin coin, byte[] signature, byte[] bytes) {
-        if (!publicKeys.containsKey(from))
-            return KeyStatus.NO_PUBLIC_KEY;
-
-        final byte[] key = publicKeys.get(from).array();
-        if (!verifyMsg(key, signature, bytes)) {
-            System.err.println("handleCoinAck() coin NOT verified. coin={\n"+coin.toString()+"\n}");
-            return KeyStatus.BAD_SIGNATURE;
+        final KeyStatus status = checkKey(from, signature, bytes);
+        if (status != KeyStatus.SUCCESS) {
+            System.err.println("handleCoin() coin NOT verified. coin={\n"+coin.toString()+"\n}");
+            return status;
         }
 
         return KeyStatus.SUCCESS;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected HashStatus checkTransaction(String from, Transaction trans, byte[] signature, byte[] bytes) {
-        if (!publicKeys.containsKey(from))
-            return HashStatus.BAD_KEY;
-
-        final byte[] key = publicKeys.get(from).array();
-        if (!verifyMsg(key, signature, bytes)) {
-            System.err.println("checkTransaction() trans NOT verified. trans={\n"+trans.toString()+"\n}");
-            return HashStatus.BAD_KEY;
+        final KeyStatus status = checkKey(from, signature, bytes);
+        if (status != KeyStatus.SUCCESS) {
+            System.err.println("handleCoin() coin NOT verified. trans={\n"+trans.toString()+"\n}");
+            return HashStatus.BAD_HASH;
         }
 
         return blockChain.checkTransaction(trans);       
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected HashStatus handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes) {
-        if (!publicKeys.containsKey(from))
-            return HashStatus.BAD_KEY;
-
-        final byte[] key = publicKeys.get(from).array();
-        if (!verifyMsg(key, signature, bytes)) {
-            System.err.println("handleValidation() trans NOT verified. trans={\n"+trans.toString()+"\n}");
-            return HashStatus.BAD_KEY;
+        final KeyStatus status = checkKey(from, signature, bytes);
+        if (status != KeyStatus.SUCCESS) {
+            System.err.println("handleCoin() coin NOT verified. trans={\n"+trans.toString()+"\n}");
+            return HashStatus.BAD_HASH;
         }
 
         return blockChain.addTransaction(trans);       

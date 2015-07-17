@@ -3,14 +3,14 @@ package com.jwetherell.bitcoin.data_model;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class BlockChain {
 
     public static enum HashStatus { BAD_KEY, BAD_HASH, SUCCESS };
 
-    private final List<Coin>                transactions    = new CopyOnWriteArrayList<Coin>();
+    private final Queue<Coin>               transactions    = new ConcurrentLinkedQueue<Coin>();
 
     // Generate the genesis
     private byte[]                          hash;
@@ -28,6 +28,7 @@ public class BlockChain {
 
     public BlockChain() { }
 
+    // synchronized to protected hash from changing while processing
     public synchronized Transaction getNextTransaction(String from, Coin coin) {
         final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
         coin.toBuffer(buffer);
@@ -37,6 +38,7 @@ public class BlockChain {
         return (new Transaction(from, hash, nextHash, coin));
     }
 
+    // synchronized to protected hash from changing while processing
     public synchronized HashStatus checkTransaction(Transaction trans) {
         final Coin coin = trans.coin;
         final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
@@ -53,6 +55,7 @@ public class BlockChain {
         return HashStatus.SUCCESS;
     }
 
+    // synchronized to protected hash/transactions from changing while processing
     public synchronized HashStatus addTransaction(Transaction trans) {
         // Already processed this coin.
         final Coin coin = trans.coin;
@@ -73,6 +76,7 @@ public class BlockChain {
         return HashStatus.SUCCESS;
     }
 
+    // synchronized to protected transactions from changing while processing
     public synchronized long getBalance(String name) {
         long result = 0;
         for (Coin c : transactions) {
@@ -111,9 +115,11 @@ public class BlockChain {
 
     /**
      * {@inheritDoc}
+     * 
+     * synchronized to protected transactions from changing while processing
      */
     @Override
-    public boolean equals(Object o) {
+    public synchronized boolean equals(Object o) {
         if (!(o instanceof BlockChain))
             return false;
         BlockChain b = (BlockChain) o;
@@ -125,6 +131,8 @@ public class BlockChain {
     }
     /**
      * {@inheritDoc}
+     * 
+     * synchronized to protected transactions from changing while processing
      */
     @Override
     public String toString() {
