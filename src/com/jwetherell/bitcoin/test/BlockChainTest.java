@@ -7,7 +7,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.jwetherell.bitcoin.data_model.BlockChain;
-import com.jwetherell.bitcoin.data_model.Coin;
+import com.jwetherell.bitcoin.data_model.Block;
 
 public class BlockChainTest {
 
@@ -17,9 +17,9 @@ public class BlockChainTest {
         final byte[] hash1;
         {
             byte[] hash = "This is a hash".getBytes();
-            Coin coin = new Coin("me","you","msg",1);
-            final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
-            coin.toBuffer(buffer);
+            Block block = new Block("me","you","msg",1);
+            final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
+            block.toBuffer(buffer);
             final byte[] bytes = buffer.array();
             hash1 = BlockChain.getNextHash(hash, bytes);
         }
@@ -27,9 +27,9 @@ public class BlockChainTest {
         final byte[] hash2;
         {
             byte[] hash = "This is a hash".getBytes();
-            Coin coin = new Coin("me","you","msg",1);
-            final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
-            coin.toBuffer(buffer);
+            Block block = new Block("me","you","msg",1);
+            final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
+            block.toBuffer(buffer);
             final byte[] bytes = buffer.array();
             hash2 = BlockChain.getNextHash(hash, bytes);
         }

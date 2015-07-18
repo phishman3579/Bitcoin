@@ -10,14 +10,14 @@ public class BlockChain {
 
     public static enum HashStatus { BAD_KEY, BAD_HASH, SUCCESS };
 
-    private final Queue<Coin>               transactions    = new ConcurrentLinkedQueue<Coin>();
+    private final Queue<Block>               transactions    = new ConcurrentLinkedQueue<Block>();
 
     // Generate the genesis
     private byte[]                          hash;
     {
         final byte[] h = "Genesis hash".getBytes();
 
-        final Coin g = (new Coin("me","you","Genesis.",1));
+        final Block g = (new Block("me","you","Genesis.",1));
         final ByteBuffer buffer = ByteBuffer.allocate(g.getBufferLength());
         g.toBuffer(buffer);
         final byte[] c = buffer.array();
@@ -29,20 +29,20 @@ public class BlockChain {
     public BlockChain() { }
 
     // synchronized to protected hash from changing while processing
-    public synchronized Transaction getNextTransaction(String from, Coin coin) {
-        final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
-        coin.toBuffer(buffer);
+    public synchronized Transaction getNextTransaction(String from, Block block) {
+        final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
+        block.toBuffer(buffer);
         final byte[] bytes = buffer.array();
 
         final byte[] nextHash = getNextHash(hash, bytes);
-        return (new Transaction(from, hash, nextHash, coin));
+        return (new Transaction(from, hash, nextHash, block));
     }
 
     // synchronized to protected hash from changing while processing
     public synchronized HashStatus checkTransaction(Transaction trans) {
-        final Coin coin = trans.coin;
-        final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
-        coin.toBuffer(buffer);
+        final Block block = trans.block;
+        final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
+        block.toBuffer(buffer);
         final byte[] bytes = buffer.array();
         final byte[] nextHash = getNextHash(hash, bytes);
 
@@ -57,29 +57,29 @@ public class BlockChain {
 
     // synchronized to protected hash/transactions from changing while processing
     public synchronized HashStatus addTransaction(Transaction trans) {
-        // Already processed this coin.
-        final Coin coin = trans.coin;
-        if (transactions.contains(coin))
+        // Already processed this block.
+        final Block block = trans.block;
+        if (transactions.contains(block))
             return HashStatus.SUCCESS;
 
         final HashStatus status = checkTransaction(trans);
         if (status != HashStatus.SUCCESS)
             return status;
 
-        final ByteBuffer buffer = ByteBuffer.allocate(coin.getBufferLength());
-        coin.toBuffer(buffer);
+        final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
+        block.toBuffer(buffer);
         final byte[] bytes = buffer.array();
         final byte[] nextHash = getNextHash(hash, bytes);
 
         hash = nextHash;
-        transactions.add(coin);
+        transactions.add(block);
         return HashStatus.SUCCESS;
     }
 
     // synchronized to protected transactions from changing while processing
     public synchronized long getBalance(String name) {
         long result = 0;
-        for (Coin c : transactions) {
+        for (Block c : transactions) {
             if (name.equals(c.from))
                 result -= c.value;
             else if (name.equals(c.to))
@@ -123,7 +123,7 @@ public class BlockChain {
         if (!(o instanceof BlockChain))
             return false;
         BlockChain b = (BlockChain) o;
-        for (Coin c : transactions) {
+        for (Block c : transactions) {
             if (!(b.transactions.contains(c)))
                 return false;
         }
@@ -139,7 +139,7 @@ public class BlockChain {
         StringBuilder builder = new StringBuilder();
         builder.append("hash=[").append(BlockChain.bytesToHex(hash)).append("]\n");
         builder.append("Transactions={").append("\n");
-        for (Coin c : transactions)
+        for (Block c : transactions)
             builder.append('\t').append(c.value).append(" from ").append(c.from).append(" to ").append(c.to).append("\n");
         builder.append("}");
         return builder.toString();

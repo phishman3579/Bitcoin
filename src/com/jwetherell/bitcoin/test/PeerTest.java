@@ -6,7 +6,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.jwetherell.bitcoin.Peer;
-import com.jwetherell.bitcoin.data_model.Coin;
+import com.jwetherell.bitcoin.data_model.Block;
 
 public class PeerTest {
 
@@ -30,18 +30,18 @@ public class PeerTest {
 
     @Test
     public void testCoin() {
-        final Coin c1 = new Coin("me","you","I give you 1 coin", 1);
-        byte[] b = Peer.getCoinMsg(c1);
-        final Coin c2 = Peer.parseCoinMsg(b);
+        final Block c1 = new Block("me","you","I give you 1 block", 1);
+        byte[] b = Peer.getBlockMsg(c1);
+        final Block c2 = Peer.parseBlockMsg(b);
 
         Assert.assertTrue(c1.equals(c2));
     }
 
     @Test
     public void testCoinAck() {
-        final Coin c1 = new Coin("me","you","I give you 1 coin", 1);
-        byte[] b = Peer.getCoinAck(c1);
-        final Coin c2 = Peer.parseCoinAck(b);
+        final Block c1 = new Block("me","you","I give you 1 block", 1);
+        byte[] b = Peer.getBlockAckMsg(c1);
+        final Block c2 = Peer.parseBlockAckMSg(b);
 
         Assert.assertTrue(c1.equals(c2));
     }

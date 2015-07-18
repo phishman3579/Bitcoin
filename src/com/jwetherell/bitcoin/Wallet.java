@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.jwetherell.bitcoin.data_model.BlockChain;
 import com.jwetherell.bitcoin.data_model.BlockChain.HashStatus;
-import com.jwetherell.bitcoin.data_model.Coin;
+import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.ProofOfWork;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
@@ -23,7 +23,7 @@ import com.jwetherell.bitcoin.data_model.Transaction;
  * 
  * Thread-Safe (Hopefully)
  */
-public class CoinExchanger extends Peer {
+public class Wallet extends Peer {
 
     private static final int                    NUMBER_OF_ZEROS         = 2;
 
@@ -63,13 +63,17 @@ public class CoinExchanger extends Peer {
     // My BLockChain
     private final BlockChain                    blockChain;
 
-    public CoinExchanger(String name) {
+    public Wallet(String name) {
         super(name);
         this.blockChain = new BlockChain();
     }
 
     public BlockChain getBlockChain() {
         return blockChain;
+    }
+
+    public long getBalance() {
+        return blockChain.getBalance(myName);
     }
 
     /**
@@ -84,8 +88,8 @@ public class CoinExchanger extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected Transaction getNextTransaction(Coin coin) {
-        Transaction trans = blockChain.getNextTransaction(myName, coin);
+    protected Transaction getNextTransaction(Block block) {
+        Transaction trans = blockChain.getNextTransaction(myName, block);
         // Need to be validated
         trans.isValid = false;
         // Number of zeros in prefix of hash to compute
@@ -140,10 +144,10 @@ public class CoinExchanger extends Peer {
     }
 
     public void sendCoin(String name, int value) {
-        // Borrow the coin from our wallet until we receive an ACK
+        // Borrow the block from our wallet until we receive an ACK
         final String msg = value+" from "+myName+" to "+name;
-        final Coin coin = new Coin(myName, name, msg, value);
-        super.sendCoin(name, coin);
+        final Block block = new Block(myName, name, msg, value);
+        super.sendCoin(name, block);
     }
 
     // synchronized to protect publicKeys from changing while processing
@@ -167,10 +171,10 @@ public class CoinExchanger extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected KeyStatus handleCoin(String from, Coin coin, byte[] signature, byte[] bytes) {
+    protected KeyStatus handleBlock(String from, Block block, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
-            System.err.println("handleCoin() coin NOT verified. coin={\n"+coin.toString()+"\n}");
+            System.err.println("handleBlock() block NOT verified. block={\n"+block.toString()+"\n}");
             return status;
         }
 
@@ -181,10 +185,10 @@ public class CoinExchanger extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected KeyStatus handleCoinAck(String from, Coin coin, byte[] signature, byte[] bytes) {
+    protected KeyStatus handleBlockAck(String from, Block block, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
-            System.err.println("handleCoin() coin NOT verified. coin={\n"+coin.toString()+"\n}");
+            System.err.println("handleBlockAck() block NOT verified. block={\n"+block.toString()+"\n}");
             return status;
         }
 
@@ -198,7 +202,7 @@ public class CoinExchanger extends Peer {
     protected HashStatus checkTransaction(String from, Transaction trans, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
-            System.err.println("handleCoin() coin NOT verified. trans={\n"+trans.toString()+"\n}");
+            System.err.println("checkTransaction() block NOT verified. trans={\n"+trans.toString()+"\n}");
             return HashStatus.BAD_HASH;
         }
 
@@ -212,7 +216,7 @@ public class CoinExchanger extends Peer {
     protected HashStatus handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
-            System.err.println("handleCoin() coin NOT verified. trans={\n"+trans.toString()+"\n}");
+            System.err.println("handleValidation() block NOT verified. trans={\n"+trans.toString()+"\n}");
             return HashStatus.BAD_HASH;
         }
 

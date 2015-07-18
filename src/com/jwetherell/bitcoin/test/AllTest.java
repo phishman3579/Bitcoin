@@ -11,14 +11,14 @@ import org.junit.runners.Suite.SuiteClasses;
         com.jwetherell.bitcoin.test.ProofOfWorkTest.class,
         com.jwetherell.bitcoin.test.BlockChainTest.class,
         com.jwetherell.bitcoin.test.EncodeDecodeTest.class,
-        com.jwetherell.bitcoin.test.CoinTest.class,
+        com.jwetherell.bitcoin.test.BlockTest.class,
         com.jwetherell.bitcoin.test.TransactionTest.class,
         com.jwetherell.bitcoin.test.DataTest.class,
         com.jwetherell.bitcoin.test.UDPTest.class,
         com.jwetherell.bitcoin.test.TCPTest.class,
         com.jwetherell.bitcoin.test.MulticastTest.class,
         com.jwetherell.bitcoin.test.PeerTest.class,
-        com.jwetherell.bitcoin.test.CoinExchangerTest.class,
+        com.jwetherell.bitcoin.test.WalletTest.class,
     }
 )
 //@formatter:on

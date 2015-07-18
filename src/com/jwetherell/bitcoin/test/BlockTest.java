@@ -5,22 +5,22 @@ import java.nio.ByteBuffer;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.jwetherell.bitcoin.data_model.Coin;
+import com.jwetherell.bitcoin.data_model.Block;
 
-public class CoinTest {
+public class BlockTest {
 
     @Test
     public void testSerialization() {
         String f = "me";
         String t = "you";
-        String m = "Here is a coin for you!";
+        String m = "Here is a block for you!";
         int v = 1;
 
-        Coin c1 = new Coin(f, t, m,v);
+        Block c1 = new Block(f, t, m,v);
         ByteBuffer b = ByteBuffer.allocate(c1.getBufferLength());
         c1.toBuffer(b);
 
-        Coin c2 = new Coin();
+        Block c2 = new Block();
         c2.fromBuffer(b);
 
         Assert.assertTrue(c1.equals(c2));

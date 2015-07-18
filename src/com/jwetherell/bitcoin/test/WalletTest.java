@@ -9,21 +9,21 @@ import java.security.Signature;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.jwetherell.bitcoin.CoinExchanger;
-import com.jwetherell.bitcoin.data_model.Coin;
+import com.jwetherell.bitcoin.Wallet;
+import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
-public class CoinExchangerTest {
+public class WalletTest {
 
     @Test(timeout=5000)
     public void testBadSignature() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";
         String n3 = "n3";
-        BadKeyCoinExchanger p1 = new BadKeyCoinExchanger(n1);
-        CoinExchanger p2 = new CoinExchanger(n2);
-        CoinExchanger p3 = new CoinExchanger(n3);
+        BadKeyCoinWallet p1 = new BadKeyCoinWallet(n1);
+        Wallet p2 = new Wallet(n2);
+        Wallet p3 = new Wallet(n3);
 
         // Wait for everyone to initialize
         while (p1.isReady()==false || p2.isReady()==false || p3.isReady()==false) {
@@ -34,14 +34,14 @@ public class CoinExchangerTest {
         p1.sendCoin(n2,10);
         // p1=0, p2=0, p3=0
 
-        while (p1.getBlockChain().getBalance(p1.getName())!=0 || p2.getBlockChain().getBalance(p2.getName())!=0 || p3.getBlockChain().getBalance(p3.getName())!=0) {
+        while (p1.getBalance()!=0 || p2.getBalance()!=0 || p3.getBalance()!=0) {
             Thread.yield();
         }
 
         p2.sendCoin(n3,2);
         // p1=0, p2=-2, p3=2
 
-        while (p1.getBlockChain().getBalance(p1.getName())!=0 || p2.getBlockChain().getBalance(p2.getName())!=-2 || p3.getBlockChain().getBalance(p3.getName())!=2) {
+        while (p1.getBalance()!=0 || p2.getBalance()!=-2 || p3.getBalance()!=2) {
             Thread.yield();
         }
 
@@ -51,17 +51,17 @@ public class CoinExchangerTest {
 
         Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
 
-        Assert.assertTrue(p1.getBlockChain().getBalance(p1.getName())==0);
-        Assert.assertTrue(p2.getBlockChain().getBalance(p2.getName())==-2);
-        Assert.assertTrue(p3.getBlockChain().getBalance(p3.getName())==2);
+        Assert.assertTrue(p1.getBalance()==0);
+        Assert.assertTrue(p2.getBalance()==-2);
+        Assert.assertTrue(p3.getBalance()==2);
     }
 
     @Test(timeout=5000)
     public void testCoinExchangers2() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";
-        CoinExchanger p1 = new CoinExchanger(n1);
-        CoinExchanger p2 = new CoinExchanger(n2);
+        Wallet p1 = new Wallet(n1);
+        Wallet p2 = new Wallet(n2);
 
         // Wait for everyone to initialize
         while (p1.isReady()==false || p2.isReady()==false) {
@@ -71,14 +71,14 @@ public class CoinExchangerTest {
         p1.sendCoin(n2, 3);
         // p1=-3, p2=3
 
-        while (p1.getBlockChain().getBalance(p1.getName())!=-3 || p2.getBlockChain().getBalance(p2.getName())!=3) {
+        while (p1.getBalance()!=-3 || p2.getBalance()!=3) {
             Thread.yield();
         }
 
         p2.sendCoin(n1, 7);
         // p1=4, p2=-7
 
-        while (p1.getBlockChain().getBalance(p1.getName())!=4 || p2.getBlockChain().getBalance(p2.getName())!=-4) {
+        while (p1.getBalance()!=4 || p2.getBalance()!=-4) {
             Thread.yield();
         }
 
@@ -87,8 +87,8 @@ public class CoinExchangerTest {
 
         Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
 
-        Assert.assertTrue(p1.getBlockChain().getBalance(p1.getName())==4);
-        Assert.assertTrue(p2.getBlockChain().getBalance(p2.getName())==-4);
+        Assert.assertTrue(p1.getBalance()==4);
+        Assert.assertTrue(p2.getBalance()==-4);
     }
 
     @Test(timeout=5000)
@@ -96,9 +96,9 @@ public class CoinExchangerTest {
         String n1 = "n1";
         String n2 = "n2";
         String n3 = "n3";
-        CoinExchanger p1 = new CoinExchanger(n1);
-        CoinExchanger p2 = new CoinExchanger(n2);
-        CoinExchanger p3 = new CoinExchanger(n3);
+        Wallet p1 = new Wallet(n1);
+        Wallet p2 = new Wallet(n2);
+        Wallet p3 = new Wallet(n3);
 
         // Wait for everyone to initialize
         while (p1.isReady()==false || p2.isReady()==false || p3.isReady()==false) {
@@ -108,21 +108,21 @@ public class CoinExchangerTest {
         p1.sendCoin(n2, 3);
         // p1=-3, p2=3, p3=0
 
-        while (p1.getBlockChain().getBalance(p1.getName())!=-3 || p2.getBlockChain().getBalance(p2.getName())!=3 || p3.getBlockChain().getBalance(p3.getName())!=0) {
+        while (p1.getBalance()!=-3 || p2.getBalance()!=3 || p3.getBalance()!=0) {
             Thread.yield();
         }
 
         p2.sendCoin(n3, 7);
         // p1=-3, p2=-4, p3=7
 
-        while (p1.getBlockChain().getBalance(p1.getName())!=-3 || p2.getBlockChain().getBalance(p2.getName())!=-4 || p3.getBlockChain().getBalance(p3.getName())!=7) {
+        while (p1.getBalance()!=-3 || p2.getBalance()!=-4 || p3.getBalance()!=7) {
             Thread.yield();
         }
 
         p3.sendCoin(n1, 11);
         // p1=8, p2=-4, p3=-4
 
-        while (p1.getBlockChain().getBalance(p1.getName())!=8 || p2.getBlockChain().getBalance(p2.getName())!=-4 || p3.getBlockChain().getBalance(p3.getName())!=-4) {
+        while (p1.getBalance()!=8 || p2.getBalance()!=-4 || p3.getBalance()!=-4) {
             Thread.yield();
         }
 
@@ -133,17 +133,17 @@ public class CoinExchangerTest {
         Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
         Assert.assertTrue(p2.getBlockChain().equals(p3.getBlockChain()));
 
-        Assert.assertTrue(p1.getBlockChain().getBalance(p1.getName())==8);
-        Assert.assertTrue(p2.getBlockChain().getBalance(p2.getName())==-4);
-        Assert.assertTrue(p3.getBlockChain().getBalance(p3.getName())==-4);
+        Assert.assertTrue(p1.getBalance()==8);
+        Assert.assertTrue(p2.getBalance()==-4);
+        Assert.assertTrue(p3.getBalance()==-4);
     }
 
     @Test(timeout=5000)
     public void testBadHash() throws InterruptedException {
         String n1 = "n1";
         String n2 = "n2";
-        DupCoinExchanger p1 = new DupCoinExchanger(n1);
-        DupCoinExchanger p2 = new DupCoinExchanger(n2);
+        DuplicateWallet p1 = new DuplicateWallet(n1);
+        DuplicateWallet p2 = new DuplicateWallet(n2);
 
         // Wait for everyone to initialize
         while (p1.isReady()==false || p2.isReady()==false) {
@@ -153,27 +153,27 @@ public class CoinExchangerTest {
         // Send coin
         p1.sendCoin(n2,10);
 
-        while (p1.getBlockChain().getBalance(p1.getName())!=-10 && p2.getBlockChain().getBalance(p2.getName())!=10) {
+        while (p1.getBalance()!=-10 && p2.getBalance()!=10) {
             Thread.yield();
         }
 
         // This has a bad hash
-        Coin coin = new Coin(n1, n2, "Please reject me!", 10);
+        Block block = new Block(n1, n2, "Please reject me!", 10);
         byte[] prev = "This is a bad hash".getBytes();
         byte[] hash = "This is a VERY bad hash".getBytes();
-        Transaction trans = new Transaction(n1, prev, hash, coin);
+        Transaction trans = new Transaction(n1, prev, hash, block);
         // Dummy data object, only care about the dest host and port
         Data data = new Data(p1.getName(), p1.getHost(), p1.getPort(), p2.getName(), p2.getHost(), p2.getPort(), "".getBytes(), "".getBytes());
         p1.sendTransaction(trans, data);
 
-        while (p1.getBlockChain().getBalance(p1.getName())!=-10 && p2.getBlockChain().getBalance(p2.getName())!=10) {
+        while (p1.getBalance()!=-10 && p2.getBalance()!=10) {
             Thread.yield();
         }
 
         // This should be accepted
         p1.sendCoin(n2,20);
 
-        while (p2.getBlockChain().getBalance(p2.getName())!=30) {
+        while (p2.getBalance()!=30) {
             Thread.yield();
         }
 
@@ -182,12 +182,12 @@ public class CoinExchangerTest {
 
         Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
 
-        Assert.assertTrue(p2.getBlockChain().getBalance(p2.getName())==30);
+        Assert.assertTrue(p2.getBalance()==30);
     }
 
-    private static class DupCoinExchanger extends CoinExchanger {
+    private static class DuplicateWallet extends Wallet {
 
-        public DupCoinExchanger(String name) {
+        public DuplicateWallet(String name) {
             super(name);
         }
 
@@ -205,7 +205,7 @@ public class CoinExchangerTest {
         }
     }
 
-    private static class BadKeyCoinExchanger extends CoinExchanger {
+    private static class BadKeyCoinWallet extends Wallet {
 
         private final KeyPairGenerator              gen;
         private final SecureRandom                  random;
@@ -228,7 +228,7 @@ public class CoinExchangerTest {
             }
         }
 
-        public BadKeyCoinExchanger(String name) {
+        public BadKeyCoinWallet(String name) {
             super(name);
         }
 

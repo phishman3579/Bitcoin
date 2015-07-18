@@ -2,7 +2,7 @@ package com.jwetherell.bitcoin.data_model;
 
 import java.nio.ByteBuffer;
 
-public class Coin {
+public class Block {
 
     private static final int    VALUE_LENGTH    = 4;
     private static final int    MSG_LENGTH      = 4;
@@ -14,18 +14,18 @@ public class Coin {
     public String               msg;
     public int                  value;
 
-    public Coin() { }
+    public Block() { }
 
-    public Coin(Coin c) {
+    public Block(Block c) {
         this.from = c.from;
         this.to = c.to;
         this.msg = c.msg;
         this.value = c.value;
     }
 
-    public Coin(String from, String to, String msg, int value) {
+    public Block(String from, String to, String msg, int value) {
         if (value <= 0)
-            throw new RuntimeException("Cannot have a zero or negative value coin");
+            throw new RuntimeException("Cannot have a zero or negative value block");
         this.from = from;
         this.to = to;
         this.msg = msg;
@@ -82,9 +82,9 @@ public class Coin {
      */
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof Coin))
+        if (!(o instanceof Block))
             return false;
-        Coin c = (Coin) o;
+        Block c = (Block) o;
         if (!(c.from.equals(this.from)))
             return false;
         if (!(c.to.equals(this.to)))

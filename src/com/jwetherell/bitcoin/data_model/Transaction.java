@@ -13,20 +13,20 @@ public class Transaction {
     public boolean              isValid         = false;
     public int                  numberOfZeros;
     public long                 nonce;
-    public Coin                 coin;
+    public Block                block;
     public byte[]               prev;
     public byte[]               hash;
 
     public Transaction() {
-        coin = new Coin();
+        block = new Block();
         prev = new byte[]{};
         hash = new byte[]{};
     }
 
-    public Transaction(String from, byte[] prevHash, byte[] hash, Coin coin) {
+    public Transaction(String from, byte[] prevHash, byte[] hash, Block block) {
         this.prev = prevHash;
         this.hash = hash;
-        this.coin = coin;
+        this.block = block;
     }
 
     public int getBufferLength() {
@@ -35,7 +35,7 @@ public class Transaction {
                 NONCE_LENGTH +
                 LENGTH_LENGTH + prev.length + 
                 LENGTH_LENGTH + hash.length + 
-                coin.getBufferLength();
+                block.getBufferLength();
     }
 
     public void toBuffer(ByteBuffer buffer) {
@@ -49,7 +49,7 @@ public class Transaction {
         buffer.putInt(hash.length);
         buffer.put(hash);
 
-        coin.toBuffer(buffer);
+        block.toBuffer(buffer);
     }
 
     public void fromBuffer(ByteBuffer buffer) {
@@ -69,7 +69,7 @@ public class Transaction {
             buffer.get(hash);
         }
 
-        coin.fromBuffer(buffer);
+        block.fromBuffer(buffer);
     }
 
     private static final char getBoolean(boolean bool) {
@@ -94,7 +94,7 @@ public class Transaction {
             return false;
         if (numberOfZeros != c.numberOfZeros)
             return false;
-        if (!(c.coin.equals(this.coin)))
+        if (!(c.block.equals(this.block)))
             return false;
         if (!(Arrays.equals(c.prev, prev)))
             return false;
@@ -114,8 +114,8 @@ public class Transaction {
         builder.append("nonce=").append(nonce).append("\n");
         builder.append("prev=[").append(BlockChain.bytesToHex(prev)).append("]\n");
         builder.append("hash=[").append(BlockChain.bytesToHex(hash)).append("]\n");
-        builder.append("coin={").append("\n");
-        builder.append(coin.toString()).append("\n");
+        builder.append("block={").append("\n");
+        builder.append(block.toString()).append("\n");
         builder.append("}");
         return builder.toString();
     }
