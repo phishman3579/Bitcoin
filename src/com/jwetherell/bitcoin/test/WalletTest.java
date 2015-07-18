@@ -41,7 +41,7 @@ public class WalletTest {
             balance -= each;
             // Distribute genesis coins
             genesis.sendCoin(w.getName(), each);
-            while (genesis.getBalance()!=balance && w.getBalance()!=each)
+            while (genesis.getBalance()!=balance || w.getBalance()!=each)
                 Thread.yield();   
         }
     }
@@ -185,7 +185,7 @@ public class WalletTest {
         p1.sendCoin(n2,10);
         // p1=15, p2=35
 
-        while (p1.getBalance()!=15 && p2.getBalance()!=35) {
+        while (p1.getBalance()!=15 || p2.getBalance()!=35) {
             Thread.yield();
         }
 
@@ -199,7 +199,7 @@ public class WalletTest {
         p1.sendBlock(trans, data);
         // p1=15, p2=35 (nothing changes)
 
-        while (p1.getBalance()!=15 && p2.getBalance()!=35) {
+        while (p1.getBalance()!=15 || p2.getBalance()!=35) {
             Thread.yield();
         }
 
@@ -207,7 +207,7 @@ public class WalletTest {
         p1.sendCoin(n2,10);
         // p1=5, p2=45
 
-        while (p1.getBalance()!=5 && p2.getBalance()!=45) {
+        while (p1.getBalance()!=5 || p2.getBalance()!=45) {
             Thread.yield();
         }
 
