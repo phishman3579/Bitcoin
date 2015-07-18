@@ -149,8 +149,8 @@ public class Transaction {
         {
             if (c.outputs.length != this.outputs.length)
                 return false;
-            for (int i=0; i<c.inputs.length; i++)
-                if (!(c.inputs[i].equals(inputs[i])))
+            for (int i=0; i<c.outputs.length; i++)
+                if (!(c.outputs[i].equals(outputs[i])))
                     return false;
         }
         if (c.value != this.value)

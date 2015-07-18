@@ -174,8 +174,8 @@ public class BlockChain {
         if (!(o instanceof BlockChain))
             return false;
         final BlockChain b = (BlockChain) o;
-        for (Transaction c : transactions) {
-            if (!(b.transactions.contains(c)))
+        for (Transaction t : transactions) {
+            if (!(b.transactions.contains(t)))
                 return false;
         }
         return true;
