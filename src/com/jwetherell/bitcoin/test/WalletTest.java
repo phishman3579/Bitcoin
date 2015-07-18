@@ -21,7 +21,7 @@ public class WalletTest {
         String n1 = "n1";
         String n2 = "n2";
         String n3 = "n3";
-        BadKeyCoinWallet p1 = new BadKeyCoinWallet(n1);
+        BadKeyWallet p1 = new BadKeyWallet(n1);
         Wallet p2 = new Wallet(n2);
         Wallet p3 = new Wallet(n3);
 
@@ -205,7 +205,7 @@ public class WalletTest {
         }
     }
 
-    private static class BadKeyCoinWallet extends Wallet {
+    private static class BadKeyWallet extends Wallet {
 
         private final KeyPairGenerator              gen;
         private final SecureRandom                  random;
@@ -228,7 +228,7 @@ public class WalletTest {
             }
         }
 
-        public BadKeyCoinWallet(String name) {
+        public BadKeyWallet(String name) {
             super(name);
         }
 
