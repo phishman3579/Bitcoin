@@ -232,10 +232,9 @@ public class Wallet extends Peer {
         final PeerStatus status = checkSignature(from, signature, bytes);
         if (status == PeerStatus.NO_PUBLIC_KEY)
             return BlockChainStatus.NO_PUBLIC_KEY;
-        if (status == PeerStatus.BAD_SIGNATURE)
+        else if (status == PeerStatus.BAD_SIGNATURE)
             return BlockChainStatus.BAD_SIGNATURE;
-
-        if (status != PeerStatus.SUCCESS)
+        else if (status != PeerStatus.SUCCESS)
             return BlockChainStatus.UNKNOWN;
 
         return blockChain.checkBlock(block);       
@@ -247,8 +246,12 @@ public class Wallet extends Peer {
     @Override
     protected BlockChainStatus handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
         final PeerStatus status = checkSignature(from, signature, bytes);
-        if (status != PeerStatus.SUCCESS)
+        if (status == PeerStatus.NO_PUBLIC_KEY)
+            return BlockChainStatus.NO_PUBLIC_KEY;
+        else if (status == PeerStatus.BAD_SIGNATURE)
             return BlockChainStatus.BAD_SIGNATURE;
+        else if (status != PeerStatus.SUCCESS)
+            return BlockChainStatus.UNKNOWN;
 
         return blockChain.addBlock(block);       
     }

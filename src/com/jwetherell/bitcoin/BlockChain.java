@@ -104,7 +104,7 @@ public class BlockChain {
         final byte[] bytes = buffer.array();
         final byte[] nextHash = getNextHash(latestHash, bytes);
 
-        // Remove the input transactions exist in the unused pool
+        // Remove the inputs from the unused pool
         for (Transaction t : transaction.inputs) {
             boolean exists = unused.remove(t);
             if (exists == false) {
@@ -113,14 +113,15 @@ public class BlockChain {
             }
         }
 
-        // Add output to unused transactions
+        // Add outputs to unused transactions
         for (Transaction t : transaction.outputs)
             unused.add(t);
 
         // Update the hash and add the new transaction to the list
         latestHash = nextHash;
-        transactions.add(transaction);
         blockChain.add(block);
+        transactions.add(transaction);
+
         return BlockChainStatus.SUCCESS;
     }
 

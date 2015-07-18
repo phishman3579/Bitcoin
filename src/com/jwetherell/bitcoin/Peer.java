@@ -297,9 +297,12 @@ public abstract class Peer {
         final Block block = parseBlockMsg(bytes);
         final BlockChainStatus status = checkTransaction(data.from, block, data.signature.array(), data.message.array());
         final String from = data.from;
-        if (status != BlockChainStatus.SUCCESS) {
+        if (status == BlockChainStatus.NO_PUBLIC_KEY) {
             addBlockToRecv(Queued.State.CONFIRM, from, block, data);
             sendWhois(from);
+            return;
+        } else if (status != BlockChainStatus.SUCCESS) {
+            // Drop all other errors
             return;
         }
 
@@ -336,6 +339,9 @@ public abstract class Peer {
                 addBlockToRecv(Queued.State.CONFIRM, from, block, data);
                 sendWhois(from);
                 return;
+            } else if (status != BlockChainStatus.SUCCESS) {
+                // Drop all other errors
+                return;
             }
             return;
         }
@@ -345,8 +351,14 @@ public abstract class Peer {
             return;
 
         final BlockChainStatus status = checkTransaction(from, block, data.signature.array(), data.message.array());
-        if (status != BlockChainStatus.SUCCESS)
+        if (status == BlockChainStatus.NO_PUBLIC_KEY) {
+            addBlockToRecv(Queued.State.CONFIRM, from, block, data);
+            sendWhois(from);
             return;
+        } else if (status != BlockChainStatus.SUCCESS) {
+            // Drop all other errors
+            return;
+        }
 
         // Let's mine this sucker.
         long nonce = mining(block.hash, block.numberOfZeros);
