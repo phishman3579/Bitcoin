@@ -89,9 +89,9 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected Block getNextBlock(Transaction block) {
-        Block trans = blockChain.getNextTransaction(myName, block);
-        // Need to be validated
+    protected Block getNextBlock(Transaction transaction) {
+        Block trans = blockChain.getNextBlock(myName, transaction);
+        // Need to be confirmed
         trans.confirmed = false;
         // Number of zeros in prefix of hash to compute
         trans.numberOfZeros = NUMBER_OF_ZEROS;
@@ -172,10 +172,10 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected KeyStatus handleTransaction(String from, Transaction block, byte[] signature, byte[] bytes) {
+    protected KeyStatus handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
-            System.err.println("handleBlock() block NOT verified. block={\n"+block.toString()+"\n}");
+            System.err.println("handleBlock() transaction NOT verified. transaction={\n"+transaction.toString()+"\n}");
             return status;
         }
 
@@ -186,10 +186,10 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected KeyStatus handleTransactionAck(String from, Transaction block, byte[] signature, byte[] bytes) {
+    protected KeyStatus handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
-            System.err.println("handleBlockAck() block NOT verified. block={\n"+block.toString()+"\n}");
+            System.err.println("handleBlockAck() transaction NOT verified. transaction={\n"+transaction.toString()+"\n}");
             return status;
         }
 
@@ -200,28 +200,28 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected HashStatus checkTransaction(String from, Block trans, byte[] signature, byte[] bytes) {
+    protected HashStatus checkTransaction(String from, Block block, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
-            System.err.println("checkTransaction() block NOT verified. trans={\n"+trans.toString()+"\n}");
+            System.err.println("checkTransaction() block NOT verified. block={\n"+block.toString()+"\n}");
             return HashStatus.BAD_HASH;
         }
 
-        return blockChain.checkTransaction(trans);       
+        return blockChain.checkBlock(block);       
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected HashStatus handleValidation(String from, Block trans, byte[] signature, byte[] bytes) {
+    protected HashStatus handleValidation(String from, Block block, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
-            System.err.println("handleValidation() block NOT verified. trans={\n"+trans.toString()+"\n}");
+            System.err.println("handleValidation() block NOT verified. block={\n"+block.toString()+"\n}");
             return HashStatus.BAD_HASH;
         }
 
-        return blockChain.addTransaction(trans);       
+        return blockChain.addBlock(block);       
     }
 
     /**
