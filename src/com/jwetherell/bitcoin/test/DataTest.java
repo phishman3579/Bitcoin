@@ -21,11 +21,12 @@ public class DataTest {
         final byte[] msg = "This is a message".getBytes();
 
         final Data d1 = new Data(from,sHost,sPort,to,dHost,dPort,sig,msg);
-        final ByteBuffer b = ByteBuffer.allocate(d1.getBufferLength());
-        d1.toBuffer(b);
+        final ByteBuffer buffer = ByteBuffer.allocate(d1.getBufferLength());
+        d1.toBuffer(buffer);
+        buffer.flip();
 
         final Data d2 = new Data();
-        d2.fromBuffer(b);
+        d2.fromBuffer(buffer);
 
         Assert.assertTrue(d1.equals(d2));
     }

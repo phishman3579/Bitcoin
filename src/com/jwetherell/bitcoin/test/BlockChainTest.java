@@ -11,15 +11,19 @@ import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class BlockChainTest {
 
+    private static final Transaction[] EMPTY = new Transaction[0];
+
     @Test
     public void test() {
 
         final byte[] hash1;
         {
             final byte[] hash = "This is a hash".getBytes();
-            final Transaction block = new Transaction("me","you","msg",1);
+            final Transaction block = new Transaction("me","you","msg",7,EMPTY,EMPTY);
             final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
             block.toBuffer(buffer);
+            buffer.flip();
+
             final byte[] bytes = buffer.array();
             hash1 = BlockChain.getNextHash(hash, bytes);
         }
@@ -27,9 +31,11 @@ public class BlockChainTest {
         final byte[] hash2;
         {
             byte[] hash = "This is a hash".getBytes();
-            final Transaction block = new Transaction("me","you","msg",1);
+            final Transaction block = new Transaction("me","you","msg",7,EMPTY,EMPTY);
             final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
             block.toBuffer(buffer);
+            buffer.flip();
+
             final byte[] bytes = buffer.array();
             hash2 = BlockChain.getNextHash(hash, bytes);
         }

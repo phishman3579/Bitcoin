@@ -8,82 +8,132 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class BlockChain {
 
-    public static enum HashStatus { BAD_KEY, BAD_HASH, SUCCESS };
+    public static final String              NO_ONE              = "no one";
+    public static final String              GENESIS_NAME        = "genesis";
 
-    private final Queue<Transaction>        transactions    = new ConcurrentLinkedQueue<Transaction>();
+    public static enum                      BlockChainStatus    { NO_PUBLIC_KEY, BAD_SIGNATURE, BAD_INPUTS, DUPLICATE, SUCCESS, UNKNOWN };
 
-    // Generate the genesis
-    private byte[]                          hash;
-    {
-        final byte[] h = "Genesis hash".getBytes();
+    private final Queue<Block>              blockChain          = new ConcurrentLinkedQueue<Block>();
+    private final Queue<Transaction>        transactions        = new ConcurrentLinkedQueue<Transaction>();
+    private final Queue<Transaction>        unused              = new ConcurrentLinkedQueue<Transaction>();
 
-        final Transaction g = (new Transaction("me","you","Genesis.",1));
-        final ByteBuffer buffer = ByteBuffer.allocate(g.getBufferLength());
-        g.toBuffer(buffer);
-        final byte[] c = buffer.array();
+    private static final byte[]             INITIAL_HASH        = new byte[0];
 
-        final String string = new String(h) + new String(c);
-        hash = calculateSha256(string);
+    private static final Transaction        GENESIS_TRANS;
+    private static final Block              GENESIS_BLOCK;
+
+    static {
+        final Transaction[] empty = new Transaction[0];
+        final Transaction[] output = new Transaction[1];
+        output[0] = new Transaction(NO_ONE, GENESIS_NAME, "Genesis gets 50 coins.", 50, empty, empty);
+
+        GENESIS_TRANS = new Transaction(NO_ONE, GENESIS_NAME, "Genesis transfer.", 0, empty, output);
+
+        final ByteBuffer buffer = ByteBuffer.allocate(GENESIS_TRANS.getBufferLength());
+        GENESIS_TRANS.toBuffer(buffer);
+        buffer.flip();
+
+        final byte[] bytes = buffer.array();
+        final byte[] nextHash = BlockChain.getNextHash(BlockChain.INITIAL_HASH, bytes);
+
+        GENESIS_BLOCK = new Block(NO_ONE, BlockChain.INITIAL_HASH, nextHash, GENESIS_TRANS);
     }
 
-    public BlockChain() { }
+    private byte[]                          latestHash          = INITIAL_HASH;
+
+    public BlockChain() {
+        // transfer initial coins into genesis account
+        this.addBlock(GENESIS_BLOCK);
+    }
+
+    public synchronized Queue<Transaction> getUnused() {
+        return unused;
+    }
 
     // synchronized to protected hash from changing while processing
     public synchronized Block getNextBlock(String from, Transaction transaction) {
         final ByteBuffer buffer = ByteBuffer.allocate(transaction.getBufferLength());
         transaction.toBuffer(buffer);
+        buffer.flip();
+
         final byte[] bytes = buffer.array();
 
-        final byte[] nextHash = getNextHash(hash, bytes);
-        return (new Block(from, hash, nextHash, transaction));
+        final byte[] nextHash = getNextHash(latestHash, bytes);
+        return (new Block(from, latestHash, nextHash, transaction));
     }
 
     // synchronized to protected hash from changing while processing
-    public synchronized HashStatus checkBlock(Block block) {
+    public synchronized BlockChainStatus checkBlock(Block block) {
         final Transaction transaction = block.transaction;
         final ByteBuffer buffer = ByteBuffer.allocate(transaction.getBufferLength());
         transaction.toBuffer(buffer);
+        buffer.flip();
+
         final byte[] bytes = buffer.array();
-        final byte[] nextHash = getNextHash(hash, bytes);
+        final byte[] nextHash = getNextHash(latestHash, bytes);
 
         final byte[] incomingHash = block.hash;
         if (!(Arrays.equals(incomingHash, nextHash))) {
             System.err.println("Invalid hash on transaction.");
-            return HashStatus.BAD_HASH;
+            return BlockChainStatus.BAD_SIGNATURE;
         }
 
-        return HashStatus.SUCCESS;
+        return BlockChainStatus.SUCCESS;
     }
 
     // synchronized to protected hash/transactions from changing while processing
-    public synchronized HashStatus addBlock(Block block) {
-        // Already processed this transaction?
-        final Transaction transaction = block.transaction;
-        if (transactions.contains(transaction))
-            return HashStatus.SUCCESS;
+    public synchronized BlockChainStatus addBlock(Block block) {
+        // Already processed this block? Happens if a miner is slow and isn't first to send the block
+        if (blockChain.contains(block))
+            return BlockChainStatus.DUPLICATE;
 
-        final HashStatus status = checkBlock(block);
-        if (status != HashStatus.SUCCESS)
+        // Check to see if the block's hash is correct
+        final BlockChainStatus status = checkBlock(block);
+        if (status != BlockChainStatus.SUCCESS)
             return status;
 
+        final Transaction transaction = block.transaction;
         final ByteBuffer buffer = ByteBuffer.allocate(transaction.getBufferLength());
         transaction.toBuffer(buffer);
-        final byte[] bytes = buffer.array();
-        final byte[] nextHash = getNextHash(hash, bytes);
+        buffer.flip();
 
-        hash = nextHash;
+        final byte[] bytes = buffer.array();
+        final byte[] nextHash = getNextHash(latestHash, bytes);
+
+        // Remove the input transactions exist in the unused pool
+        for (Transaction t : transaction.inputs) {
+            boolean exists = unused.remove(t);
+            if (exists == false) {
+                System.err.println("Bad inputs in block. block={\n"+block.toString()+"\n}");
+                return BlockChainStatus.BAD_INPUTS;
+            }
+        }
+
+        // Add output to unused transactions
+        for (Transaction t : transaction.outputs)
+            unused.add(t);
+
+        // Update the hash and add the new transaction to the list
+        latestHash = nextHash;
         transactions.add(transaction);
-        return HashStatus.SUCCESS;
+        blockChain.add(block);
+        return BlockChainStatus.SUCCESS;
     }
 
     // synchronized to protected transactions from changing while processing
     public synchronized long getBalance(String name) {
         long result = 0;
-        for (Transaction c : transactions) {
-            if (name.equals(c.from))
-                result -= c.value;
-            else if (name.equals(c.to))
-                result += c.value;
+        for (Transaction t : transactions) {
+            // Remove the inputs
+            for (Transaction c : t.inputs) {
+                if (name.equals(c.to))
+                    result -= c.value;
+            }
+            // Add the outputs
+            for (Transaction c : t.outputs) {
+                if (name.equals(c.to))
+                    result += c.value;
+            }
         }
         return result;
     }
@@ -135,13 +185,21 @@ public class BlockChain {
      * synchronized to protected transactions from changing while processing
      */
     @Override
-    public String toString() {
+    public synchronized String toString() {
         final StringBuilder builder = new StringBuilder();
-        builder.append("hash=[").append(BlockChain.bytesToHex(hash)).append("]\n");
-        builder.append("Transactions={").append("\n");
-        for (Transaction c : transactions)
-            builder.append('\t').append(c.value).append(" from ").append(c.from).append(" to ").append(c.to).append("\n");
-        builder.append("}");
+        builder.append("hash=[").append(BlockChain.bytesToHex(latestHash)).append("]\n");
+        builder.append("inputs={").append("\n");
+        for (Transaction c : transactions) {
+            for (Transaction i : c.inputs)
+                builder.append('\t').append(i.value).append(" from '").append(i.from).append("' to '").append(i.to).append("'\n");
+            builder.append("}\n");
+        }
+        builder.append("outputs={").append("\n");
+        for (Transaction c : transactions) {
+            for (Transaction i : c.outputs)
+                builder.append('\t').append(i.value).append(" from '").append(i.from).append("' to '").append(i.to).append("'\n");
+            builder.append("}\n");
+        }
         return builder.toString();
     }
 }

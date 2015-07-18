@@ -6,7 +6,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import com.jwetherell.bitcoin.data_model.BlockChain.HashStatus;
+import com.jwetherell.bitcoin.data_model.BlockChain.BlockChainStatus;
 import com.jwetherell.bitcoin.data_model.Transaction;
 import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.ProofOfWork;
@@ -23,7 +23,7 @@ import com.jwetherell.bitcoin.networking.TCP;
  */
 public abstract class Peer {
 
-    protected static enum KeyStatus { NO_PUBLIC_KEY, BAD_SIGNATURE, SUCCESS };
+    protected static enum                         PeerStatus              { NO_PUBLIC_KEY, BAD_SIGNATURE, SUCCESS, UNKNOWN };
 
     protected static final boolean                DEBUG                   = Boolean.getBoolean("debug");
 
@@ -112,21 +112,29 @@ public abstract class Peer {
 
         // Receivers
 
-        tcpRecvThread = new Thread(runnableRecvTcp, "recvTcp");
+        tcpRecvThread = new Thread(runnableRecvTcp, myName+" recvTcp");
         tcpRecvThread.start();
 
-        multiRecvThread = new Thread(runnableRecvMulti, "recvMulti");
+        multiRecvThread = new Thread(runnableRecvMulti, myName+" recvMulti");
         multiRecvThread.start();
 
         // Senders
 
-        tcpSendThread = new Thread(runnableSendTcp, "sendTcp");
+        tcpSendThread = new Thread(runnableSendTcp, myName+" sendTcp");
         sendTcpQueue = runnableSendTcp.getQueue();
         tcpSendThread.start();
 
-        multiSendThread = new Thread(runnableSendMulti, "sendMulti");
+        multiSendThread = new Thread(runnableSendMulti, myName+" sendMulti");
         sendMultiQueue = runnableSendMulti.getQueue();
         multiSendThread.start();
+
+        while (isReady()==false) {
+            Thread.yield();
+        }
+    }
+
+    public String getName() {
+        return myName;
     }
 
     public void shutdown() throws InterruptedException {
@@ -151,10 +159,6 @@ public abstract class Peer {
 
         multiRecvThread.interrupt();
         multiRecvThread.join();
-    }
-
-    public String getName() {
-        return myName;
     }
 
     public boolean isReady() {
@@ -206,7 +210,7 @@ public abstract class Peer {
         final Data d = peers.get(to);
         if (d == null){
             // Could not find peer, broadcast a whois
-            addTransactionToSend(false, to, transaction);
+            addTransactionToSend(Queued.State.NEW, to, transaction);
             sendWhois(to);
             return;
         }
@@ -225,12 +229,12 @@ public abstract class Peer {
 
     private void handleTransaction(String from, Transaction transaction, Data data) {
         // Let the app logic do what it needs to
-        KeyStatus knownPublicKey = handleTransaction(from, transaction, data.signature.array(), data.message.array());
-        if (knownPublicKey == KeyStatus.NO_PUBLIC_KEY) {
-            addTransactionToRecv(false, from, transaction, data);
+        PeerStatus knownPublicKey = handleTransaction(from, transaction, data.signature.array(), data.message.array());
+        if (knownPublicKey == PeerStatus.NO_PUBLIC_KEY) {
+            addTransactionToRecv(Queued.State.NEW, from, transaction, data);
             sendWhois(from);
             return;
-        } else if (knownPublicKey != KeyStatus.SUCCESS) {
+        } else if (knownPublicKey != PeerStatus.SUCCESS) {
             return;
         }
 
@@ -239,13 +243,13 @@ public abstract class Peer {
     }
 
     /** What do you want to do now that you have received a transaction, return the KeyStatus **/
-    protected abstract KeyStatus handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes);
+    protected abstract PeerStatus handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes);
 
     private void ackTransaction(String to, Transaction transaction) {
         final Data d = peers.get(to);
         if (d == null){
             // Could not find peer, broadcast a whois
-            addTransactionToSend(true, to, transaction);
+            addTransactionToSend(Queued.State.ACK, to, transaction);
             sendWhois(to);
             return;
         }
@@ -264,12 +268,12 @@ public abstract class Peer {
 
     private void handleTransactionAck(String from, Transaction transaction, Data data) {
         // Let the app logic do what it needs to
-        KeyStatus knownPublicKey = handleTransactionAck(from, transaction, data.signature.array(), data.message.array());
-        if (knownPublicKey == KeyStatus.NO_PUBLIC_KEY) {
-            addTransactionToRecv(true, from, transaction, data);
+        PeerStatus knownPublicKey = handleTransactionAck(from, transaction, data.signature.array(), data.message.array());
+        if (knownPublicKey == PeerStatus.NO_PUBLIC_KEY) {
+            addTransactionToRecv(Queued.State.ACK, from, transaction, data);
             sendWhois(from);
             return;
-        } else if (knownPublicKey != KeyStatus.SUCCESS) {
+        } else if (knownPublicKey != PeerStatus.SUCCESS) {
             return;
         }
 
@@ -278,7 +282,7 @@ public abstract class Peer {
     }
 
     /** What do you want to do now that you received an ACK for a sent transaction, return the KeyStatus **/
-    protected abstract KeyStatus handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes);
+    protected abstract PeerStatus handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes);
 
     /** Create a transaction given the this block **/
     protected abstract Block getNextBlock(Transaction trans);
@@ -292,9 +296,13 @@ public abstract class Peer {
 
     private void handleBlock(byte[] bytes, Data data) {
         final Block block = parseBlockMsg(bytes);
-        final HashStatus status = checkTransaction(data.from, block, data.signature.array(), data.message.array());
-        if (status != HashStatus.SUCCESS)
+        final BlockChainStatus status = checkTransaction(data.from, block, data.signature.array(), data.message.array());
+        final String from = data.from;
+        if (status != BlockChainStatus.SUCCESS) {
+            addBlockToRecv(Queued.State.CONFIRM, from, block, data);
+            sendWhois(from);
             return;
+        }
 
         // Hash looks good to me, ask everyone else
         sendConfirmation(block);
@@ -308,51 +316,60 @@ public abstract class Peer {
     }
 
     private void handleConfirmation(byte[] bytes, Data data) {
-        final Block trans = parseConfirmationMsg(bytes);
-        if (trans.confirmed) {
+        final Block block = parseConfirmationMsg(bytes);
+        final String from = data.from;
+        handleConfirmation(from, block, data);
+    }
+
+    private void handleConfirmation(String from, Block block, Data data) {
+        if (block.confirmed) {
             // Yey! we got a confirmation from the community
 
             // Let's see if the nonce was computed correctly
-            boolean nonceComputedCorrectly = ProofOfWork.check(trans.hash, trans.nonce, trans.numberOfZeros);
+            boolean nonceComputedCorrectly = ProofOfWork.check(block.hash, block.nonce, block.numberOfZeros);
             if (!nonceComputedCorrectly) {
-                System.err.println("Nonce was not computed correctly. trans={\n"+trans.toString()+"\n}");
+                System.err.println("Nonce was not computed correctly. block={\n"+block.toString()+"\n}");
                 return;
             }
 
-            handleValidation(data.from, trans, data.signature.array(), data.message.array());
+            BlockChainStatus status = handleConfirmation(from, block, data.signature.array(), data.message.array());
+            if (status == BlockChainStatus.NO_PUBLIC_KEY) {
+                addBlockToRecv(Queued.State.CONFIRM, from, block, data);
+                sendWhois(from);
+                return;
+            }
             return;
         }
 
         // Don't validate my own transaction
-        final String from = data.from;
         if (from.equals(myName))
             return;
 
-        final HashStatus status = checkTransaction(from, trans, data.signature.array(), data.message.array());
-        if (status != HashStatus.SUCCESS)
+        final BlockChainStatus status = checkTransaction(from, block, data.signature.array(), data.message.array());
+        if (status != BlockChainStatus.SUCCESS)
             return;
 
         // Let's mine this sucker.
-        long nonce = mining(trans.hash, trans.numberOfZeros);
+        long nonce = mining(block.hash, block.numberOfZeros);
 
         // Hash looks good to me and I have computed a nonce, let everyone know
-        trans.confirmed = true;
-        trans.nonce = nonce;
-        sendConfirmation(trans);
+        block.confirmed = true;
+        block.nonce = nonce;
+        sendConfirmation(block);
     }
 
     /** What do you want to do now that you received a block, return the HashStatus **/
-    protected abstract HashStatus checkTransaction(String from, Block block, byte[] signature, byte[] bytes);
+    protected abstract BlockChainStatus checkTransaction(String from, Block block, byte[] signature, byte[] bytes);
 
     /** What do you want to do now that you received a valid block, return the HashStatus **/
-    protected abstract HashStatus handleValidation(String from, Block block, byte[] signature, byte[] bytes);
+    protected abstract BlockChainStatus handleConfirmation(String from, Block block, byte[] signature, byte[] bytes);
 
     /** Mine the nonce sent in the transaction **/
     protected abstract long mining(byte[] sha256, long numberOfZerosInPrefix);
 
     // synchronized to protected transactionsToSend from changing while processing    
-    private synchronized void addTransactionToSend(boolean isAck, String to, Transaction transaction) {
-        final Queued q = new Queued(isAck, transaction, null);
+    private synchronized void addTransactionToSend(Queued.State state, String to, Transaction transaction) {
+        final Queued q = new Queued(state, transaction, null);
         Queue<Queued> l = transactionsToSend.get(to);
         if (l == null) {
             l = new ConcurrentLinkedQueue<Queued>();
@@ -379,8 +396,19 @@ public abstract class Peer {
     }
 
     // synchronized to protected transactionsToRecv from changing while processing    
-    private synchronized void addTransactionToRecv(boolean isAck, String from, Transaction transaction, Data data) {
-        final Queued q = new Queued(isAck, transaction, data);
+    private synchronized void addTransactionToRecv(Queued.State state, String from, Transaction transaction, Data data) {
+        final Queued q = new Queued(state, transaction, data);
+        Queue<Queued> lc = transactionsToRecv.get(from);
+        if (lc == null) {
+            lc = new ConcurrentLinkedQueue<Queued>();
+            transactionsToRecv.put(from, lc);
+        }
+        lc.add(q);
+    }
+
+    // synchronized to protected transactionsToRecv from changing while processing    
+    private synchronized void addBlockToRecv(Queued.State state, String from, Block block, Data data) {
+        final Queued q = new Queued(state, block, data);
         Queue<Queued> lc = transactionsToRecv.get(from);
         if (lc == null) {
             lc = new ConcurrentLinkedQueue<Queued>();
@@ -398,7 +426,9 @@ public abstract class Peer {
             final Queued q = l.poll();
             if (q == null)
                 return;
-            if (q.isAck)
+            if (q.state == Queued.State.CONFIRM)
+                handleConfirmation(from, q.block, q.data);
+            else if (q.state == Queued.State.ACK)
                 handleTransactionAck(from, q.transaction, q.data);
             else
                 handleTransaction(from, q.transaction, q.data);
@@ -407,13 +437,28 @@ public abstract class Peer {
 
     private static final class Queued {
 
-        private final boolean       isAck;
+        private enum                State {NEW, ACK, CONFIRM};
+
+        private final State         state;
         private final Transaction   transaction;
+        private final Block         block;
         private final Data          data;
 
-        private Queued(boolean isAck, Transaction transaction, Data data) {
-            this.isAck = isAck;
+        private Queued(State state, Transaction transaction, Data data) {
+            if (state == State.CONFIRM)
+                throw new RuntimeException("Cannot have a CONFIRM without a Block");
+            this.state = state;
             this.transaction = transaction;
+            this.block = null;
+            this.data = data;
+        }
+
+        private Queued(State state, Block block, Data data) {
+            if (state != State.CONFIRM)
+                throw new RuntimeException("Cannot have a non-CONFIRM with a Block");
+            this.state = state;
+            this.transaction = null;
+            this.block = block;
             this.data = data;
         }
     }
@@ -470,14 +515,16 @@ public abstract class Peer {
         return bKey;
     }
 
-    public static final byte[] getTransactionMsg(Transaction block) {
-        final byte[] msg = new byte[HEADER_LENGTH + block.getBufferLength()];
-        final ByteBuffer blockBuffer = ByteBuffer.allocate(block.getBufferLength());
-        block.toBuffer(blockBuffer);
+    public static final byte[] getTransactionMsg(Transaction transaction) {
+        final byte[] msg = new byte[HEADER_LENGTH + transaction.getBufferLength()];
+        final ByteBuffer transactionBuffer = ByteBuffer.allocate(transaction.getBufferLength());
+        transaction.toBuffer(transactionBuffer);
+        transactionBuffer.flip();
+
         final ByteBuffer buffer = ByteBuffer.wrap(msg);
         buffer.put(TRANSACTION.getBytes());
 
-        buffer.put(blockBuffer);
+        buffer.put(transactionBuffer);
 
         return msg;
     }
@@ -487,20 +534,22 @@ public abstract class Peer {
         final byte [] bMsgType = new byte[HEADER_LENGTH];
         buffer.get(bMsgType);
 
-        final Transaction block = new Transaction();
-        block.fromBuffer(buffer);
+        final Transaction transaction = new Transaction();
+        transaction.fromBuffer(buffer);
 
-        return block;
+        return transaction;
     }
 
-    public static final byte[] getTransactionAckMsg(Transaction block) {
-        final byte[] msg = new byte[HEADER_LENGTH + block.getBufferLength()];
-        final ByteBuffer blockBuffer = ByteBuffer.allocate(block.getBufferLength());
-        block.toBuffer(blockBuffer);
+    public static final byte[] getTransactionAckMsg(Transaction transaction) {
+        final byte[] msg = new byte[HEADER_LENGTH + transaction.getBufferLength()];
+        final ByteBuffer transactionBuffer = ByteBuffer.allocate(transaction.getBufferLength());
+        transaction.toBuffer(transactionBuffer);
+        transactionBuffer.flip();
+
         final ByteBuffer buffer = ByteBuffer.wrap(msg);
         buffer.put(TRANSACTION_ACK.getBytes());
 
-        buffer.put(blockBuffer);
+        buffer.put(transactionBuffer);
 
         return msg;
     }
@@ -516,10 +565,12 @@ public abstract class Peer {
         return block;
     }
 
-    public static final byte[] getBlockMsg(Block trans) {
-        final byte[] msg = new byte[HEADER_LENGTH + trans.getBufferLength()];
-        final ByteBuffer blockBuffer = ByteBuffer.allocate(trans.getBufferLength());
-        trans.toBuffer(blockBuffer);
+    public static final byte[] getBlockMsg(Block block) {
+        final byte[] msg = new byte[HEADER_LENGTH + block.getBufferLength()];
+        final ByteBuffer blockBuffer = ByteBuffer.allocate(block.getBufferLength());
+        block.toBuffer(blockBuffer);
+        blockBuffer.flip();
+
         final ByteBuffer buffer = ByteBuffer.wrap(msg);
         buffer.put(BLOCK.getBytes());
 
@@ -539,10 +590,12 @@ public abstract class Peer {
         return block;
     }
 
-    public static final byte[] getConfirmationMsg(Block trans) {
-        final byte[] msg = new byte[HEADER_LENGTH + trans.getBufferLength()];
-        final ByteBuffer blockBuffer = ByteBuffer.allocate(trans.getBufferLength());
-        trans.toBuffer(blockBuffer);
+    public static final byte[] getConfirmationMsg(Block block) {
+        final byte[] msg = new byte[HEADER_LENGTH + block.getBufferLength()];
+        final ByteBuffer blockBuffer = ByteBuffer.allocate(block.getBufferLength());
+        block.toBuffer(blockBuffer);
+        blockBuffer.flip();
+
         final ByteBuffer buffer = ByteBuffer.wrap(msg);
         buffer.put(VALIDATION.getBytes());
 

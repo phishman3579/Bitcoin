@@ -10,6 +10,8 @@ import com.jwetherell.bitcoin.networking.UDP;
 
 public class UDPTest {
 
+    private static final boolean DEBUG = Boolean.getBoolean("debug");
+
     @Test(timeout=5000)
     public void test() throws InterruptedException {
         final String from = "me";
@@ -25,7 +27,8 @@ public class UDPTest {
                 Data d = recv.getQueue().poll();
                 while (d != null) {
                     final byte[] data = d.message.array();
-                    System.out.println("Listener received '"+new String(data)+"'");
+                    if (DEBUG)
+                        System.out.println("Listener received '"+new String(data)+"'");
                     Assert.assertTrue(isEquals(toSend,data,toSend.length));
                     d = recv.getQueue().poll();
                 }

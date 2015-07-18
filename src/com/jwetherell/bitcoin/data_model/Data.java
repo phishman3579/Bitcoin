@@ -96,8 +96,6 @@ public class Data {
         // Data
         buffer.putInt(message.limit());
         buffer.put(message);
-
-        buffer.flip();
     }
 
     public void fromBuffer(ByteBuffer buffer) {

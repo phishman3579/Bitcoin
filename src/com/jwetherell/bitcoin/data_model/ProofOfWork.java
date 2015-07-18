@@ -2,7 +2,7 @@ package com.jwetherell.bitcoin.data_model;
 
 public class ProofOfWork {
 
-    protected static final boolean DEBUG = Boolean.getBoolean("debug");
+    private static final boolean DEBUG = Boolean.getBoolean("debug");
 
     public static final long solve(byte[] sha256, long numberOfZerosInPrefix) {
         final StringBuilder builder = new StringBuilder();

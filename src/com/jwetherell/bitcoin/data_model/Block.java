@@ -23,10 +23,10 @@ public class Block {
         hash = new byte[]{};
     }
 
-    public Block(String from, byte[] prevHash, byte[] hash, Transaction block) {
+    public Block(String from, byte[] prevHash, byte[] hash, Transaction transaction) {
         this.prev = prevHash;
         this.hash = hash;
-        this.transaction = block;
+        this.transaction = transaction;
     }
 
     public int getBufferLength() {

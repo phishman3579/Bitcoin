@@ -85,7 +85,7 @@ public class Multicast {
 
     public static final class Peer {
 
-        private static final int BUFFER_SIZE = 1*1024;
+        private static final int BUFFER_SIZE = 10*1024;
 
         public static final class RunnableRecv implements Runnable, Receiver {
 
@@ -226,14 +226,16 @@ public class Multicast {
                         final Data d = toSend.poll();
                         if (d != null) {
                             final byte[] buffer = new byte[BUFFER_SIZE];
-                            final ByteBuffer bytes = ByteBuffer.wrap(buffer);
-                            d.toBuffer(bytes);
+                            final ByteBuffer bb = ByteBuffer.wrap(buffer);
+                            d.toBuffer(bb);
+                            bb.flip();
 
                             if (DEBUG)
                                 System.out.println("Client ("+d.sourceAddr.getHostAddress()+":"+d.sourcePort+") sending '"+new String(d.message.array())+"'");
 
                             Multicast.sendData(s, ttl, buffer);
                         }
+
                         Thread.yield();
                     }
                 } catch (SocketException e) {

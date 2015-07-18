@@ -10,6 +10,8 @@ import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class PeerTest {
 
+    private static final Transaction[] EMPTY = new Transaction[0];
+
     @Test
     public void testHello() {
         final byte[] key = "key".getBytes();
@@ -29,8 +31,8 @@ public class PeerTest {
     }
 
     @Test
-    public void testCoin() {
-        final Transaction c1 = new Transaction("me","you","I give you 1 block", 1);
+    public void testTransaction() {
+        final Transaction c1 = new Transaction("me","you","I give you 1 coin", 1, EMPTY, EMPTY);
         byte[] b = Peer.getTransactionMsg(c1);
         final Transaction c2 = Peer.parseTransactionMsg(b);
 
@@ -38,8 +40,8 @@ public class PeerTest {
     }
 
     @Test
-    public void testCoinAck() {
-        final Transaction c1 = new Transaction("me","you","I give you 1 block", 1);
+    public void testTransactionAck() {
+        final Transaction c1 = new Transaction("me","you","I give you 2 coins", 2, EMPTY, EMPTY);
         byte[] b = Peer.getTransactionAckMsg(c1);
         final Transaction c2 = Peer.parseTransactionAckMsg(b);
 

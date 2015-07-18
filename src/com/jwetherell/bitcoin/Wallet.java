@@ -9,14 +9,16 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.jwetherell.bitcoin.data_model.BlockChain;
-import com.jwetherell.bitcoin.data_model.BlockChain.HashStatus;
-import com.jwetherell.bitcoin.data_model.Transaction;
-import com.jwetherell.bitcoin.data_model.ProofOfWork;
 import com.jwetherell.bitcoin.data_model.Block;
+import com.jwetherell.bitcoin.data_model.BlockChain;
+import com.jwetherell.bitcoin.data_model.BlockChain.BlockChainStatus;
+import com.jwetherell.bitcoin.data_model.ProofOfWork;
+import com.jwetherell.bitcoin.data_model.Transaction;
 
 /**
  * Class which handles the logic of maintaining the wallet including tracking serial numbers and public/private key encryption.
@@ -27,6 +29,8 @@ public class Wallet extends Peer {
 
     // Number of zeros in prefix of has to compute as the proof of work.
     private static final int                    NUMBER_OF_ZEROS         = 1;
+    // Empty list
+    private static final Transaction[]          EMPTY = new Transaction[0];
 
     private final KeyPairGenerator              gen;
     private final SecureRandom                  random;
@@ -144,23 +148,57 @@ public class Wallet extends Peer {
         return verified;
     }
 
-    public void sendCoin(String name, int value) {
-        // Borrow the block from our wallet until we receive an ACK
+    // synchronized to protected unused from changing during processing
+    public synchronized void sendCoin(String name, int value) {
+        final List<Transaction> inputList = new ArrayList<Transaction>();
+        int coins = 0;
+        for (Transaction t : this.blockChain.getUnused()) {
+            if (!(t.to.equals(myName))) 
+                continue;
+            coins += t.value;
+            inputList.add(t);
+            if (coins >= value)
+                break;
+        }
+        if (coins < value) {
+            System.err.println("Sorry, you do not have enough coins.");
+            return;
+        }
+        final Transaction[] inputs = new Transaction[inputList.size()];
+        for (int i=0; i<inputList.size(); i++)
+            inputs[i] = inputList.get(i);
+
+        List<Transaction> outputList = new ArrayList<Transaction>();
+        if (coins > value) {
+            // I get some change back
+            final int myCoins = coins - value;
+            final Transaction t = new Transaction(myName, myName, "I get some change back.", myCoins, inputs, EMPTY);
+            outputList.add(t);
+        }
+        final Transaction t = new Transaction(myName, name, "Here are some coins for you", value, inputs, EMPTY);
+        outputList.add(t);
+
+        final Transaction[] outputs = new Transaction[outputList.size()];
+        for (int i=0; i<outputList.size(); i++)
+            outputs[i] = outputList.get(i);
+
         final String msg = value+" from "+myName+" to "+name;
-        final Transaction block = new Transaction(myName, name, msg, value);
-        super.sendTransaction(name, block);
+        final Transaction transaction = new Transaction(myName, name, msg, value, inputs, outputs);
+        super.sendTransaction(name, transaction);
     }
 
     // synchronized to protect publicKeys from changing while processing
-    private synchronized KeyStatus checkKey(String from, byte[] signature, byte[] bytes) {
+    private synchronized PeerStatus checkSignature(String from, byte[] signature, byte[] bytes) {
         if (!publicKeys.containsKey(from))
-            return KeyStatus.NO_PUBLIC_KEY;
+            return PeerStatus.NO_PUBLIC_KEY;
 
         final byte[] key = publicKeys.get(from).array();
-        if (!verifyMsg(key, signature, bytes))
-            return KeyStatus.BAD_SIGNATURE;
+        if (!verifyMsg(key, signature, bytes)) {
+            System.err.println("Bad signature on key from '"+from+"'");
+            return PeerStatus.BAD_SIGNATURE;
+        }
 
-        return KeyStatus.SUCCESS;
+        return PeerStatus.SUCCESS;
     }
 
     /** Mine the nonce sent in the transaction **/
@@ -172,40 +210,39 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected KeyStatus handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes) {
-        final KeyStatus status = checkKey(from, signature, bytes);
-        if (status != KeyStatus.SUCCESS) {
-            System.err.println("handleBlock() transaction NOT verified. transaction={\n"+transaction.toString()+"\n}");
+    protected PeerStatus handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes) {
+        final PeerStatus status = checkSignature(from, signature, bytes);
+        if (status != PeerStatus.SUCCESS)
             return status;
-        }
 
-        return KeyStatus.SUCCESS;
+        return PeerStatus.SUCCESS;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected KeyStatus handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes) {
-        final KeyStatus status = checkKey(from, signature, bytes);
-        if (status != KeyStatus.SUCCESS) {
-            System.err.println("handleBlockAck() transaction NOT verified. transaction={\n"+transaction.toString()+"\n}");
+    protected PeerStatus handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes) {
+        final PeerStatus status = checkSignature(from, signature, bytes);
+        if (status != PeerStatus.SUCCESS)
             return status;
-        }
 
-        return KeyStatus.SUCCESS;
+        return PeerStatus.SUCCESS;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected HashStatus checkTransaction(String from, Block block, byte[] signature, byte[] bytes) {
-        final KeyStatus status = checkKey(from, signature, bytes);
-        if (status != KeyStatus.SUCCESS) {
-            System.err.println("checkTransaction() block NOT verified. block={\n"+block.toString()+"\n}");
-            return HashStatus.BAD_HASH;
-        }
+    protected BlockChainStatus checkTransaction(String from, Block block, byte[] signature, byte[] bytes) {
+        final PeerStatus status = checkSignature(from, signature, bytes);
+        if (status == PeerStatus.NO_PUBLIC_KEY)
+            return BlockChainStatus.NO_PUBLIC_KEY;
+        if (status == PeerStatus.BAD_SIGNATURE)
+            return BlockChainStatus.BAD_SIGNATURE;
+
+        if (status != PeerStatus.SUCCESS)
+            return BlockChainStatus.UNKNOWN;
 
         return blockChain.checkBlock(block);       
     }
@@ -214,12 +251,10 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected HashStatus handleValidation(String from, Block block, byte[] signature, byte[] bytes) {
-        final KeyStatus status = checkKey(from, signature, bytes);
-        if (status != KeyStatus.SUCCESS) {
-            System.err.println("handleValidation() block NOT verified. block={\n"+block.toString()+"\n}");
-            return HashStatus.BAD_HASH;
-        }
+    protected BlockChainStatus handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
+        final PeerStatus status = checkSignature(from, signature, bytes);
+        if (status != PeerStatus.SUCCESS)
+            return BlockChainStatus.BAD_SIGNATURE;
 
         return blockChain.addBlock(block);       
     }

@@ -74,7 +74,7 @@ public class TCP {
 
     public static final class Peer { 
 
-        private static final int        BUFFER_SIZE     = 1*1024;
+        private static final int        BUFFER_SIZE     = 10*1024;
 
         private Peer() { }
 
@@ -212,8 +212,9 @@ public class TCP {
                         final Data d = toSend.poll();
                         if (d != null) {
                             final byte[] buffer = new byte[BUFFER_SIZE];
-                            final ByteBuffer bytes = ByteBuffer.wrap(buffer);
-                            d.toBuffer(bytes);
+                            final ByteBuffer bb = ByteBuffer.wrap(buffer);
+                            d.toBuffer(bb);
+                            bb.flip();
 
                             if (DEBUG) 
                                 System.out.println("Client ("+d.sourceAddr.getHostAddress()+":"+d.sourcePort+") sending '"+new String(d.message.array())+"'");
@@ -221,6 +222,7 @@ public class TCP {
                             s = TCP.createClient(d.destAddr.getHostAddress(), d.destPort);
                             TCP.sendData(s, buffer);
                         }
+
                         Thread.yield();
                     }
                 } catch (SocketException e) {
