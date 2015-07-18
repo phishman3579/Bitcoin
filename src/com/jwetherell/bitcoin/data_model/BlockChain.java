@@ -10,14 +10,14 @@ public class BlockChain {
 
     public static enum HashStatus { BAD_KEY, BAD_HASH, SUCCESS };
 
-    private final Queue<Block>               transactions    = new ConcurrentLinkedQueue<Block>();
+    private final Queue<Transaction>               transactions    = new ConcurrentLinkedQueue<Transaction>();
 
     // Generate the genesis
     private byte[]                          hash;
     {
         final byte[] h = "Genesis hash".getBytes();
 
-        final Block g = (new Block("me","you","Genesis.",1));
+        final Transaction g = (new Transaction("me","you","Genesis.",1));
         final ByteBuffer buffer = ByteBuffer.allocate(g.getBufferLength());
         g.toBuffer(buffer);
         final byte[] c = buffer.array();
@@ -29,18 +29,18 @@ public class BlockChain {
     public BlockChain() { }
 
     // synchronized to protected hash from changing while processing
-    public synchronized Transaction getNextTransaction(String from, Block block) {
+    public synchronized Block getNextTransaction(String from, Transaction block) {
         final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
         block.toBuffer(buffer);
         final byte[] bytes = buffer.array();
 
         final byte[] nextHash = getNextHash(hash, bytes);
-        return (new Transaction(from, hash, nextHash, block));
+        return (new Block(from, hash, nextHash, block));
     }
 
     // synchronized to protected hash from changing while processing
-    public synchronized HashStatus checkTransaction(Transaction trans) {
-        final Block block = trans.block;
+    public synchronized HashStatus checkTransaction(Block trans) {
+        final Transaction block = trans.transaction;
         final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
         block.toBuffer(buffer);
         final byte[] bytes = buffer.array();
@@ -56,9 +56,9 @@ public class BlockChain {
     }
 
     // synchronized to protected hash/transactions from changing while processing
-    public synchronized HashStatus addTransaction(Transaction trans) {
+    public synchronized HashStatus addTransaction(Block trans) {
         // Already processed this block.
-        final Block block = trans.block;
+        final Transaction block = trans.transaction;
         if (transactions.contains(block))
             return HashStatus.SUCCESS;
 
@@ -79,7 +79,7 @@ public class BlockChain {
     // synchronized to protected transactions from changing while processing
     public synchronized long getBalance(String name) {
         long result = 0;
-        for (Block c : transactions) {
+        for (Transaction c : transactions) {
             if (name.equals(c.from))
                 result -= c.value;
             else if (name.equals(c.to))
@@ -123,7 +123,7 @@ public class BlockChain {
         if (!(o instanceof BlockChain))
             return false;
         BlockChain b = (BlockChain) o;
-        for (Block c : transactions) {
+        for (Transaction c : transactions) {
             if (!(b.transactions.contains(c)))
                 return false;
         }
@@ -139,7 +139,7 @@ public class BlockChain {
         StringBuilder builder = new StringBuilder();
         builder.append("hash=[").append(BlockChain.bytesToHex(hash)).append("]\n");
         builder.append("Transactions={").append("\n");
-        for (Block c : transactions)
+        for (Transaction c : transactions)
             builder.append('\t').append(c.value).append(" from ").append(c.from).append(" to ").append(c.to).append("\n");
         builder.append("}");
         return builder.toString();

@@ -1,83 +1,80 @@
 package com.jwetherell.bitcoin.data_model;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 public class Transaction {
 
-    private static final int    BOOLEAN_LENGTH          = 2;
-    private static final int    NUM_OF_ZEROS_LENGTH     = 4;
-    private static final int    NONCE_LENGTH            = 8;
-    private static final int    LENGTH_LENGTH           = 4;
+    private static final int    VALUE_LENGTH    = 4;
+    private static final int    MSG_LENGTH      = 4;
+    private static final int    FROM_LENGTH     = 4;
+    private static final int    TO_LENGTH       = 4;
 
-    public boolean              isValid         = false;
-    public int                  numberOfZeros;
-    public long                 nonce;
-    public Block                block;
-    public byte[]               prev;
-    public byte[]               hash;
+    public String               from;
+    public String               to;
+    public String               msg;
+    public int                  value;
 
-    public Transaction() {
-        block = new Block();
-        prev = new byte[]{};
-        hash = new byte[]{};
+    public Transaction() { }
+
+    public Transaction(Transaction c) {
+        this.from = c.from;
+        this.to = c.to;
+        this.msg = c.msg;
+        this.value = c.value;
     }
 
-    public Transaction(String from, byte[] prevHash, byte[] hash, Block block) {
-        this.prev = prevHash;
-        this.hash = hash;
-        this.block = block;
+    public Transaction(String from, String to, String msg, int value) {
+        if (value <= 0)
+            throw new RuntimeException("Cannot have a zero or negative value block");
+        this.from = from;
+        this.to = to;
+        this.msg = msg;
+        this.value = value;
     }
 
     public int getBufferLength() {
-        return  BOOLEAN_LENGTH + 
-                NUM_OF_ZEROS_LENGTH +
-                NONCE_LENGTH +
-                LENGTH_LENGTH + prev.length + 
-                LENGTH_LENGTH + hash.length + 
-                block.getBufferLength();
+        return  VALUE_LENGTH + 
+                MSG_LENGTH + msg.getBytes().length + 
+                FROM_LENGTH + from.getBytes().length + 
+                TO_LENGTH + to.getBytes().length;
     }
 
     public void toBuffer(ByteBuffer buffer) {
-        buffer.putChar(getBoolean(isValid));
-        buffer.putInt(numberOfZeros);
-        buffer.putLong(nonce);
+        buffer.putInt(value);
 
-        buffer.putInt(prev.length);
-        buffer.put(prev);
+        final int mLength = msg.length();
+        buffer.putInt(mLength);
+        final byte[] mBytes = msg.getBytes();
+        buffer.put(mBytes);
 
-        buffer.putInt(hash.length);
-        buffer.put(hash);
+        final byte[] fBytes = from.getBytes();
+        buffer.putInt(fBytes.length);
+        buffer.put(fBytes);
 
-        block.toBuffer(buffer);
+        final byte[] oBytes = to.getBytes();
+        buffer.putInt(oBytes.length);
+        buffer.put(oBytes);
+
+        buffer.flip();
     }
 
     public void fromBuffer(ByteBuffer buffer) {
-        isValid = parseBoolean(buffer.getChar());
-        numberOfZeros = buffer.getInt();
-        nonce = buffer.getLong();
+        value = buffer.getInt();
 
-        {
-            final int length = buffer.getInt();
-            prev = new byte[length];
-            buffer.get(prev);
-        }
+        final int mLength = buffer.getInt();
+        final byte[] mBytes = new byte[mLength];
+        buffer.get(mBytes, 0, mLength);
+        msg = new String(mBytes);
 
-        {
-            final int length = buffer.getInt();
-            hash = new byte[length];
-            buffer.get(hash);
-        }
+        final int fLength = buffer.getInt();
+        final byte[] fBytes = new byte[fLength];
+        buffer.get(fBytes, 0, fLength);
+        from = new String(fBytes);
 
-        block.fromBuffer(buffer);
-    }
-
-    private static final char getBoolean(boolean bool) {
-        return (bool?'T':'F');
-    }
-
-    private static final boolean parseBoolean(char bool) {
-        return (bool=='T'?true:false);
+        final int oLength = buffer.getInt();
+        final byte[] oBytes = new byte[oLength];
+        buffer.get(oBytes, 0, oLength);
+        to = new String(oBytes);
     }
 
     /**
@@ -88,17 +85,13 @@ public class Transaction {
         if (!(o instanceof Transaction))
             return false;
         Transaction c = (Transaction) o;
-        if (isValid != c.isValid)
+        if (!(c.from.equals(this.from)))
             return false;
-        if (nonce != c.nonce)
+        if (!(c.to.equals(this.to)))
             return false;
-        if (numberOfZeros != c.numberOfZeros)
+        if (!(c.msg.equals(this.msg)))
             return false;
-        if (!(c.block.equals(this.block)))
-            return false;
-        if (!(Arrays.equals(c.prev, prev)))
-            return false;
-        if (!(Arrays.equals(c.hash, hash)))
+        if (c.value != this.value)
             return false;
         return true;
     }
@@ -109,14 +102,10 @@ public class Transaction {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("isValid=").append(isValid).append("\n");
-        builder.append("numberOfZerosToCompute=").append(numberOfZeros).append("\n");
-        builder.append("nonce=").append(nonce).append("\n");
-        builder.append("prev=[").append(BlockChain.bytesToHex(prev)).append("]\n");
-        builder.append("hash=[").append(BlockChain.bytesToHex(hash)).append("]\n");
-        builder.append("block={").append("\n");
-        builder.append(block.toString()).append("\n");
-        builder.append("}");
+        builder.append("from='").append(from).append("'\n");
+        builder.append("to='").append(to).append("'\n");
+        builder.append("msg=[").append(msg).append("]\n");
+        builder.append("value=").append(value);
         return builder.toString();
     }
 }

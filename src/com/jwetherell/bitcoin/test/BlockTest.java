@@ -5,7 +5,7 @@ import java.nio.ByteBuffer;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.jwetherell.bitcoin.data_model.Block;
+import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class BlockTest {
 
@@ -16,11 +16,11 @@ public class BlockTest {
         String m = "Here is a block for you!";
         int v = 1;
 
-        Block c1 = new Block(f, t, m,v);
+        Transaction c1 = new Transaction(f, t, m,v);
         ByteBuffer b = ByteBuffer.allocate(c1.getBufferLength());
         c1.toBuffer(b);
 
-        Block c2 = new Block();
+        Transaction c2 = new Transaction();
         c2.fromBuffer(b);
 
         Assert.assertTrue(c1.equals(c2));

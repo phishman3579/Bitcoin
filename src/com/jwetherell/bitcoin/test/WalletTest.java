@@ -10,9 +10,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.jwetherell.bitcoin.Wallet;
-import com.jwetherell.bitcoin.data_model.Block;
-import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.Transaction;
+import com.jwetherell.bitcoin.data_model.Data;
+import com.jwetherell.bitcoin.data_model.Block;
 
 public class WalletTest {
 
@@ -158,13 +158,13 @@ public class WalletTest {
         }
 
         // This has a bad hash
-        Block block = new Block(n1, n2, "Please reject me!", 10);
+        Transaction block = new Transaction(n1, n2, "Please reject me!", 10);
         byte[] prev = "This is a bad hash".getBytes();
         byte[] hash = "This is a VERY bad hash".getBytes();
-        Transaction trans = new Transaction(n1, prev, hash, block);
+        Block trans = new Block(n1, prev, hash, block);
         // Dummy data object, only care about the dest host and port
         Data data = new Data(p1.getName(), p1.getHost(), p1.getPort(), p2.getName(), p2.getHost(), p2.getPort(), "".getBytes(), "".getBytes());
-        p1.sendTransaction(trans, data);
+        p1.sendBlock(trans, data);
 
         while (p1.getBalance()!=-10 && p2.getBalance()!=10) {
             Thread.yield();
@@ -200,8 +200,8 @@ public class WalletTest {
         }
 
         /** Really only here to open up the method for JUnits **/
-        public void sendTransaction(Transaction trans, Data data) {
-            super.sendTransaction(trans, data);
+        public void sendBlock(Block trans, Data data) {
+            super.sendBlock(trans, data);
         }
     }
 

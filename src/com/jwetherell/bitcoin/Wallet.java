@@ -14,9 +14,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.jwetherell.bitcoin.data_model.BlockChain;
 import com.jwetherell.bitcoin.data_model.BlockChain.HashStatus;
-import com.jwetherell.bitcoin.data_model.Block;
-import com.jwetherell.bitcoin.data_model.ProofOfWork;
 import com.jwetherell.bitcoin.data_model.Transaction;
+import com.jwetherell.bitcoin.data_model.ProofOfWork;
+import com.jwetherell.bitcoin.data_model.Block;
 
 /**
  * Class which handles the logic of maintaining the wallet including tracking serial numbers and public/private key encryption.
@@ -89,10 +89,10 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected Transaction getNextTransaction(Block block) {
-        Transaction trans = blockChain.getNextTransaction(myName, block);
+    protected Block getNextBlock(Transaction block) {
+        Block trans = blockChain.getNextTransaction(myName, block);
         // Need to be validated
-        trans.isValid = false;
+        trans.confirmed = false;
         // Number of zeros in prefix of hash to compute
         trans.numberOfZeros = NUMBER_OF_ZEROS;
         return trans;
@@ -147,8 +147,8 @@ public class Wallet extends Peer {
     public void sendCoin(String name, int value) {
         // Borrow the block from our wallet until we receive an ACK
         final String msg = value+" from "+myName+" to "+name;
-        final Block block = new Block(myName, name, msg, value);
-        super.sendCoin(name, block);
+        final Transaction block = new Transaction(myName, name, msg, value);
+        super.sendTransaction(name, block);
     }
 
     // synchronized to protect publicKeys from changing while processing
@@ -172,7 +172,7 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected KeyStatus handleBlock(String from, Block block, byte[] signature, byte[] bytes) {
+    protected KeyStatus handleTransaction(String from, Transaction block, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
             System.err.println("handleBlock() block NOT verified. block={\n"+block.toString()+"\n}");
@@ -186,7 +186,7 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected KeyStatus handleBlockAck(String from, Block block, byte[] signature, byte[] bytes) {
+    protected KeyStatus handleTransactionAck(String from, Transaction block, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
             System.err.println("handleBlockAck() block NOT verified. block={\n"+block.toString()+"\n}");
@@ -200,7 +200,7 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected HashStatus checkTransaction(String from, Transaction trans, byte[] signature, byte[] bytes) {
+    protected HashStatus checkTransaction(String from, Block trans, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
             System.err.println("checkTransaction() block NOT verified. trans={\n"+trans.toString()+"\n}");
@@ -214,7 +214,7 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected HashStatus handleValidation(String from, Transaction trans, byte[] signature, byte[] bytes) {
+    protected HashStatus handleValidation(String from, Block trans, byte[] signature, byte[] bytes) {
         final KeyStatus status = checkKey(from, signature, bytes);
         if (status != KeyStatus.SUCCESS) {
             System.err.println("handleValidation() block NOT verified. trans={\n"+trans.toString()+"\n}");
