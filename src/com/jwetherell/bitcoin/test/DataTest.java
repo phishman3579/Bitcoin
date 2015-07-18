@@ -21,7 +21,7 @@ public class DataTest {
         final byte[] msg = "This is a message".getBytes();
 
         final Data d1 = new Data(from,sHost,sPort,to,dHost,dPort,sig,msg);
-        ByteBuffer b = ByteBuffer.allocate(d1.getBufferLength());
+        final ByteBuffer b = ByteBuffer.allocate(d1.getBufferLength());
         d1.toBuffer(b);
 
         final Data d2 = new Data();

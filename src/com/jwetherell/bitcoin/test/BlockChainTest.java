@@ -16,8 +16,8 @@ public class BlockChainTest {
 
         final byte[] hash1;
         {
-            byte[] hash = "This is a hash".getBytes();
-            Transaction block = new Transaction("me","you","msg",1);
+            final byte[] hash = "This is a hash".getBytes();
+            final Transaction block = new Transaction("me","you","msg",1);
             final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
             block.toBuffer(buffer);
             final byte[] bytes = buffer.array();
@@ -27,7 +27,7 @@ public class BlockChainTest {
         final byte[] hash2;
         {
             byte[] hash = "This is a hash".getBytes();
-            Transaction block = new Transaction("me","you","msg",1);
+            final Transaction block = new Transaction("me","you","msg",1);
             final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
             block.toBuffer(buffer);
             final byte[] bytes = buffer.array();

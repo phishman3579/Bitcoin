@@ -21,36 +21,34 @@ public class EncodeDecodeTest {
         /* Test generating and verifying a DSA signature */
         try {
             /* generate a key pair */
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("DSA");
+            final KeyPairGenerator keyGen = KeyPairGenerator.getInstance("DSA");
             keyGen.initialize(1024, new SecureRandom());
-            KeyPair pair = keyGen.generateKeyPair();
+            final KeyPair pair = keyGen.generateKeyPair();
 
-            /* create a Signature object to use
-             * for signing and verifying */
-            Signature dsa = Signature.getInstance("SHA/DSA"); 
+            /* create a Signature object to use for signing and verifying */
+            final Signature dsa = Signature.getInstance("SHA/DSA"); 
 
             /* initialize the Signature object for signing */
-            PrivateKey priv = pair.getPrivate();
+            final PrivateKey priv = pair.getPrivate();
             dsa.initSign(priv);
 
             /* Update and sign the data */
             dsa.update(data);
 
-            /* Now that all the data to be signed
-             * has been read in, sign it */
-            byte[] sig = dsa.sign();
+            /* Now that all the data to be signed has been read in, sign it */
+            final byte[] sig = dsa.sign();
 
             /* Verify the signature */
 
             /* Initialize the Signature object for verification */
-            PublicKey pub = pair.getPublic();
+            final PublicKey pub = pair.getPublic();
             dsa.initVerify(pub);
 
             /* Update and verify the data */
             dsa.update(data);
 
-            boolean verifies = dsa.verify(sig);
-            Assert.assertTrue(verifies);
+            final boolean verified = dsa.verify(sig);
+            Assert.assertTrue(verified);
         } catch (Exception e) {
             System.err.println("Caught exception " + e.toString());
         }
@@ -63,40 +61,39 @@ public class EncodeDecodeTest {
         /* Test generating and verifying a DSA signature */
         try {
             /* generate a key pair */
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("DSA");
+            final KeyPairGenerator keyGen = KeyPairGenerator.getInstance("DSA");
             keyGen.initialize(1024, new SecureRandom());
-            KeyPair pair = keyGen.generateKeyPair();
+            final KeyPair pair = keyGen.generateKeyPair();
 
             /* create a Signature object to use
              * for signing and verifying */
-            Signature dsa = Signature.getInstance("SHA/DSA"); 
+            final Signature dsa = Signature.getInstance("SHA/DSA"); 
 
             /* initialize the Signature object for signing */
-            PrivateKey priv = pair.getPrivate();
+            final PrivateKey priv = pair.getPrivate();
             dsa.initSign(priv);
 
             /* Update and sign the data */
             dsa.update(data);
 
-            /* Now that all the data to be signed
-             * has been read in, sign it */
-            byte[] sig = dsa.sign();
+            /* Now that all the data to be signed has been read in, sign it */
+            final byte[] sig = dsa.sign();
 
             /* Verify the signature */
 
             /* Initialize the Signature object for verification */
-            PublicKey pub = pair.getPublic();
+            final PublicKey pub = pair.getPublic();
             /* Encode the public key into a byte array */
-            byte[] encoded = pub.getEncoded();
+            final byte[] encoded = pub.getEncoded();
             /* Get the public key from the encoded byte array */
-            PublicKey fromEncoded = KeyFactory.getInstance("DSA", "SUN").generatePublic(new X509EncodedKeySpec(encoded));
+            final PublicKey fromEncoded = KeyFactory.getInstance("DSA", "SUN").generatePublic(new X509EncodedKeySpec(encoded));
             dsa.initVerify(fromEncoded);
 
             /* Update and verify the data */
             dsa.update(data);
 
-            boolean verifies = dsa.verify(sig);
-            Assert.assertTrue(verifies);
+            final boolean verified = dsa.verify(sig);
+            Assert.assertTrue(verified);
         } catch (Exception e) {
             System.err.println("Caught exception " + e.toString());
         }

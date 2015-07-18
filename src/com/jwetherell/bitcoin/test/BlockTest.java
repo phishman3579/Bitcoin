@@ -6,23 +6,27 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.jwetherell.bitcoin.data_model.Transaction;
+import com.jwetherell.bitcoin.data_model.Block;
 
 public class BlockTest {
 
     @Test
     public void testSerialization() {
-        String f = "me";
-        String t = "you";
-        String m = "Here is a block for you!";
-        int v = 1;
+        final String f = "me";
+        final String t = "you";
+        final String m = "Here is a coin for you!";
+        final int v = 1;
 
-        Transaction c1 = new Transaction(f, t, m,v);
-        ByteBuffer b = ByteBuffer.allocate(c1.getBufferLength());
-        c1.toBuffer(b);
+        final Transaction trans = new Transaction(f, t, m,v);
+        byte[] prev = "I am a hash!".getBytes();
+        byte[] hash = "I am also a hash!".getBytes();
+        final Block block = new Block(f,prev,hash,trans);
+        final ByteBuffer b = ByteBuffer.allocate(block.getBufferLength());
+        block.toBuffer(b);
 
-        Transaction c2 = new Transaction();
-        c2.fromBuffer(b);
+        final Block block2 = new Block();
+        block2.fromBuffer(b);
 
-        Assert.assertTrue(c1.equals(c2));
+        Assert.assertTrue(block.equals(block2));
     }
 }
