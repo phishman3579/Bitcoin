@@ -3,6 +3,8 @@ package com.jwetherell.bitcoin.data_model;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import com.jwetherell.bitcoin.BlockChain;
+
 public class Block {
 
     private static final int    BOOLEAN_LENGTH          = 2;

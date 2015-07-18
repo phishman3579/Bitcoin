@@ -14,10 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.jwetherell.bitcoin.BlockChain.BlockChainStatus;
 import com.jwetherell.bitcoin.data_model.Block;
-import com.jwetherell.bitcoin.data_model.BlockChain;
-import com.jwetherell.bitcoin.data_model.BlockChain.BlockChainStatus;
-import com.jwetherell.bitcoin.data_model.ProofOfWork;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
 /**
@@ -70,7 +68,7 @@ public class Wallet extends Peer {
 
     public Wallet(String name) {
         super(name);
-        this.blockChain = new BlockChain();
+        this.blockChain = new BlockChain(name);
     }
 
     public BlockChain getBlockChain() {
@@ -104,11 +102,9 @@ public class Wallet extends Peer {
 
     /**
      * {@inheritDoc}
-     * 
-     * synchronized to protect publicKeys from changing while processing
      */
     @Override
-    protected synchronized void newPublicKey(String name, byte[] publicKey) {
+    protected void newPublicKey(String name, byte[] publicKey) {
         publicKeys.put(name, ByteBuffer.wrap(publicKey));
     }
 
@@ -124,7 +120,7 @@ public class Wallet extends Peer {
             enc.update(bytes);
             signed = enc.sign();
         } catch (Exception e) {
-            System.err.println("Could not encode msg. "+e);
+            System.err.println(myName+" Could not encode msg. "+e);
         }
         return signed;
     }
@@ -143,13 +139,12 @@ public class Wallet extends Peer {
             dec.update(bytes);
             verified = dec.verify(signature);
         } catch (Exception e) {
-            System.err.println("Could not decode msg. "+e);
+            System.err.println(myName+" Could not decode msg. "+e);
         }
         return verified;
     }
 
-    // synchronized to protected unused from changing during processing
-    public synchronized void sendCoin(String name, int value) {
+    public void sendCoin(String name, int value) {
         final List<Transaction> inputList = new ArrayList<Transaction>();
         int coins = 0;
         for (Transaction t : this.blockChain.getUnused()) {
@@ -161,7 +156,7 @@ public class Wallet extends Peer {
                 break;
         }
         if (coins < value) {
-            System.err.println("Sorry, you do not have enough coins.");
+            System.err.println(myName+" Sorry, you do not have enough coins.");
             return;
         }
         final Transaction[] inputs = new Transaction[inputList.size()];
@@ -187,14 +182,13 @@ public class Wallet extends Peer {
         super.sendTransaction(name, transaction);
     }
 
-    // synchronized to protect publicKeys from changing while processing
-    private synchronized PeerStatus checkSignature(String from, byte[] signature, byte[] bytes) {
+    private PeerStatus checkSignature(String from, byte[] signature, byte[] bytes) {
         if (!publicKeys.containsKey(from))
             return PeerStatus.NO_PUBLIC_KEY;
 
         final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, signature, bytes)) {
-            System.err.println("Bad signature on key from '"+from+"'");
+            System.err.println(myName+" Bad signature on key from '"+from+"'");
             return PeerStatus.BAD_SIGNATURE;
         }
 

@@ -6,10 +6,9 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import com.jwetherell.bitcoin.data_model.BlockChain.BlockChainStatus;
+import com.jwetherell.bitcoin.BlockChain.BlockChainStatus;
 import com.jwetherell.bitcoin.data_model.Transaction;
 import com.jwetherell.bitcoin.data_model.Data;
-import com.jwetherell.bitcoin.data_model.ProofOfWork;
 import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.interfaces.Listener;
 import com.jwetherell.bitcoin.interfaces.Receiver;
@@ -77,7 +76,7 @@ public abstract class Peer {
                 } else if (hdr.equals(VALIDATION)) {
                     handleConfirmation(bytes,data);
                 } else {
-                    System.err.println("Cannot handle msg. hdr="+hdr);
+                    System.err.println(myName+" Cannot handle msg. hdr="+hdr);
                 }
 
                 // Get next message
@@ -328,7 +327,7 @@ public abstract class Peer {
             // Let's see if the nonce was computed correctly
             boolean nonceComputedCorrectly = ProofOfWork.check(block.hash, block.nonce, block.numberOfZeros);
             if (!nonceComputedCorrectly) {
-                System.err.println("Nonce was not computed correctly. block={\n"+block.toString()+"\n}");
+                System.err.println(myName+" Nonce was not computed correctly. block={\n"+block.toString()+"\n}");
                 return;
             }
 
@@ -367,8 +366,7 @@ public abstract class Peer {
     /** Mine the nonce sent in the transaction **/
     protected abstract long mining(byte[] sha256, long numberOfZerosInPrefix);
 
-    // synchronized to protected transactionsToSend from changing while processing    
-    private synchronized void addTransactionToSend(Queued.State state, String to, Transaction transaction) {
+    private void addTransactionToSend(Queued.State state, String to, Transaction transaction) {
         final Queued q = new Queued(state, transaction, null);
         Queue<Queued> l = transactionsToSend.get(to);
         if (l == null) {
@@ -378,8 +376,7 @@ public abstract class Peer {
         l.add(q);
     }
 
-    // synchronized to protected transactionsToSend from changing while processing    
-    private synchronized void processTransactionsToSend(String to) {
+    private void processTransactionsToSend(String to) {
         Queue<Queued> l = transactionsToSend.get(to);
         if (l==null || l.size()==0)
             return;
@@ -394,9 +391,8 @@ public abstract class Peer {
             sendTcpQueue.add(data);
         }
     }
-
-    // synchronized to protected transactionsToRecv from changing while processing    
-    private synchronized void addTransactionToRecv(Queued.State state, String from, Transaction transaction, Data data) {
+   
+    private void addTransactionToRecv(Queued.State state, String from, Transaction transaction, Data data) {
         final Queued q = new Queued(state, transaction, data);
         Queue<Queued> lc = transactionsToRecv.get(from);
         if (lc == null) {
@@ -406,8 +402,7 @@ public abstract class Peer {
         lc.add(q);
     }
 
-    // synchronized to protected transactionsToRecv from changing while processing    
-    private synchronized void addBlockToRecv(Queued.State state, String from, Block block, Data data) {
+    private void addBlockToRecv(Queued.State state, String from, Block block, Data data) {
         final Queued q = new Queued(state, block, data);
         Queue<Queued> lc = transactionsToRecv.get(from);
         if (lc == null) {
@@ -417,8 +412,7 @@ public abstract class Peer {
         lc.add(q);
     }
 
-    // synchronized to protected transactionsToRecv from changing while processing    
-    private synchronized void processTransactionsToRecv(String from) {
+    private void processTransactionsToRecv(String from) {
         Queue<Queued> l = transactionsToRecv.get(from);
         if (l==null || l.size()==0)
             return;

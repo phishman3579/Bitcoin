@@ -1,4 +1,4 @@
-package com.jwetherell.bitcoin.data_model;
+package com.jwetherell.bitcoin;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -6,12 +6,15 @@ import java.util.Arrays;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import com.jwetherell.bitcoin.data_model.Block;
+import com.jwetherell.bitcoin.data_model.Transaction;
+
 public class BlockChain {
 
     public static final String              NO_ONE              = "no one";
     public static final String              GENESIS_NAME        = "genesis";
 
-    public static enum                      BlockChainStatus    { NO_PUBLIC_KEY, BAD_SIGNATURE, BAD_INPUTS, DUPLICATE, SUCCESS, UNKNOWN };
+    public static enum                      BlockChainStatus    { NO_PUBLIC_KEY, BAD_HASH, BAD_SIGNATURE, BAD_INPUTS, DUPLICATE, SUCCESS, UNKNOWN };
 
     private final Queue<Block>              blockChain          = new ConcurrentLinkedQueue<Block>();
     private final Queue<Transaction>        transactions        = new ConcurrentLinkedQueue<Transaction>();
@@ -39,19 +42,21 @@ public class BlockChain {
         GENESIS_BLOCK = new Block(NO_ONE, BlockChain.INITIAL_HASH, nextHash, GENESIS_TRANS);
     }
 
+    private final String                    owner;
+
     private byte[]                          latestHash          = INITIAL_HASH;
 
-    public BlockChain() {
+    public BlockChain(String owner) {
+        this.owner = owner;
         // transfer initial coins into genesis account
         this.addBlock(GENESIS_BLOCK);
     }
 
-    public synchronized Queue<Transaction> getUnused() {
+    public Queue<Transaction> getUnused() {
         return unused;
     }
 
-    // synchronized to protected hash from changing while processing
-    public synchronized Block getNextBlock(String from, Transaction transaction) {
+    public Block getNextBlock(String from, Transaction transaction) {
         final ByteBuffer buffer = ByteBuffer.allocate(transaction.getBufferLength());
         transaction.toBuffer(buffer);
         buffer.flip();
@@ -62,8 +67,7 @@ public class BlockChain {
         return (new Block(from, latestHash, nextHash, transaction));
     }
 
-    // synchronized to protected hash from changing while processing
-    public synchronized BlockChainStatus checkBlock(Block block) {
+    public BlockChainStatus checkBlock(Block block) {
         final Transaction transaction = block.transaction;
         final ByteBuffer buffer = ByteBuffer.allocate(transaction.getBufferLength());
         transaction.toBuffer(buffer);
@@ -74,14 +78,14 @@ public class BlockChain {
 
         final byte[] incomingHash = block.hash;
         if (!(Arrays.equals(incomingHash, nextHash))) {
-            System.err.println("Invalid hash on transaction.");
-            return BlockChainStatus.BAD_SIGNATURE;
+            System.err.println(owner+" Invalid hash on transaction.");
+            return BlockChainStatus.BAD_HASH;
         }
 
         return BlockChainStatus.SUCCESS;
     }
 
-    // synchronized to protected hash/transactions from changing while processing
+    // synchronized to protected transactions/blockChain/unused from changing while processing
     public synchronized BlockChainStatus addBlock(Block block) {
         // Already processed this block? Happens if a miner is slow and isn't first to send the block
         if (blockChain.contains(block))
@@ -104,7 +108,7 @@ public class BlockChain {
         for (Transaction t : transaction.inputs) {
             boolean exists = unused.remove(t);
             if (exists == false) {
-                System.err.println("Bad inputs in block. block={\n"+block.toString()+"\n}");
+                System.err.println(owner+" Bad inputs in block. block={\n"+block.toString()+"\n}");
                 return BlockChainStatus.BAD_INPUTS;
             }
         }
@@ -120,8 +124,7 @@ public class BlockChain {
         return BlockChainStatus.SUCCESS;
     }
 
-    // synchronized to protected transactions from changing while processing
-    public synchronized long getBalance(String name) {
+    public long getBalance(String name) {
         long result = 0;
         for (Transaction t : transactions) {
             // Remove the inputs
@@ -165,11 +168,9 @@ public class BlockChain {
 
     /**
      * {@inheritDoc}
-     * 
-     * synchronized to protected transactions from changing while processing
      */
     @Override
-    public synchronized boolean equals(Object o) {
+    public boolean equals(Object o) {
         if (!(o instanceof BlockChain))
             return false;
         final BlockChain b = (BlockChain) o;
@@ -181,11 +182,9 @@ public class BlockChain {
     }
     /**
      * {@inheritDoc}
-     * 
-     * synchronized to protected transactions from changing while processing
      */
     @Override
-    public synchronized String toString() {
+    public String toString() {
         final StringBuilder builder = new StringBuilder();
         builder.append("hash=[").append(BlockChain.bytesToHex(latestHash)).append("]\n");
         builder.append("inputs={").append("\n");

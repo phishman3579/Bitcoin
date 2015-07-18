@@ -1,4 +1,4 @@
-package com.jwetherell.bitcoin.data_model;
+package com.jwetherell.bitcoin;
 
 public class ProofOfWork {
 

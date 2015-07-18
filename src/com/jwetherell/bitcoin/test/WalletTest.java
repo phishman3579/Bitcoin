@@ -11,9 +11,9 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.jwetherell.bitcoin.BlockChain;
 import com.jwetherell.bitcoin.Wallet;
 import com.jwetherell.bitcoin.data_model.Block;
-import com.jwetherell.bitcoin.data_model.BlockChain;
 import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
