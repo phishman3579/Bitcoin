@@ -29,7 +29,7 @@ public abstract class Peer {
     private static final String                   TRANSACTION                   = "Transaction     ";
     private static final String                   TRANSACTION_ACK               = "Transaction ACK ";
     private static final String                   BLOCK                         = "Block           ";
-    private static final String                   VALIDATION                    = "Validate        ";
+    private static final String                   CONFIRMATION                  = "Confirm         ";
     private static final String                   RESEND                        = "Resend          ";
     private static final String                   REHASH                        = "Rehash          ";
 
@@ -59,7 +59,7 @@ public abstract class Peer {
                 final String string = new String(bytes);
                 final String hdr = string.substring(0, HEADER_LENGTH);
                 if (DEBUG) 
-                    System.out.println("Listener ("+myName+") received '"+hdr+"' msg");
+                    System.out.println(myName+" Listener received '"+hdr+"' msg");
                 if (hdr.equals(WHOIS)) {
                     handleWhois(bytes,data);
                 } else if (hdr.equals(IAM)) {
@@ -72,7 +72,7 @@ public abstract class Peer {
                     handleTransactionAck(bytes,data);
                 } else if (hdr.equals(BLOCK)) {
                     handleBlock(bytes,data);
-                } else if (hdr.equals(VALIDATION)) {
+                } else if (hdr.equals(CONFIRMATION)) {
                     handleConfirmation(bytes,data);
                     processFutureBlocksToRecv(from);
                 } else if (hdr.equals(RESEND)) {
@@ -406,6 +406,7 @@ public abstract class Peer {
         if (from.equals(myName))
             return;
 
+        final int length = this.getBlockChain().getLength();
         final Constants.Status status = checkTransaction(from, block, data.signature.array(), data.message.array());
         if (status == Constants.Status.NO_PUBLIC_KEY) {
             addBlockToRecv(Queued.State.CONFIRM, from, block, data);
@@ -415,6 +416,7 @@ public abstract class Peer {
             if (DEBUG)
                 System.out.println(myName+" handleConfirmation2() future block.");
             // Do not add to 'FutureBlockToRecv' since this block isn't confirmed
+            sendResend(length);
             return;
         } else if (status == Constants.Status.BAD_HASH) {
             if (DEBUG)
@@ -435,7 +437,7 @@ public abstract class Peer {
         block.nonce = nonce;
 
         if (DEBUG)
-            System.err.println(myName+" solved block. block={\n"+block.toString()+"\n}\n");
+            System.out.println(myName+" solved block. block={\n"+block.toString()+"\n}\n");
 
         sendConfirmation(block);
     }
@@ -468,6 +470,8 @@ public abstract class Peer {
             return;
 
         final Block toSend = this.getBlockChain().getBlock(blockNumber);
+        if (DEBUG)
+            System.out.println(myName+" resending. block={\n"+toSend.toString()+"\n}\n");
         sendConfirmation(toSend, data);
     }
 
@@ -733,7 +737,7 @@ public abstract class Peer {
         blockBuffer.flip();
 
         final ByteBuffer buffer = ByteBuffer.wrap(msg);
-        buffer.put(VALIDATION.getBytes());
+        buffer.put(CONFIRMATION.getBytes());
 
         buffer.put(blockBuffer);
 
