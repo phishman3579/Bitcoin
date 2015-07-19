@@ -19,7 +19,7 @@ import com.jwetherell.bitcoin.interfaces.Sender;
 
 public class TCP {
 
-    private static final boolean    DEBUG       = Boolean.getBoolean("debug");
+    private static final boolean    DEBUG       = Boolean.getBoolean("debug_all");
 
     public static final String      LOCAL       = "127.0.0.1";
 

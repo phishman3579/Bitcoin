@@ -63,7 +63,7 @@ public class WalletTest {
         }
     }
 
-    @Test//(timeout=10000)
+    @Test(timeout=10000)
     public void testBadSignature() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";
@@ -103,7 +103,7 @@ public class WalletTest {
         p3.shutdown();
     }
 
-    @Test//(timeout=10000)
+    @Test(timeout=10000)
     public void testCoinExchangers2() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";
@@ -135,7 +135,7 @@ public class WalletTest {
         p2.shutdown();
     }
 
-    @Test//(timeout=10000)
+    @Test(timeout=10000)
     public void testCoinExchangers3() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";
@@ -178,7 +178,7 @@ public class WalletTest {
         p3.shutdown();
     }
 
-    @Test//(timeout=10000)
+    @Test(timeout=10000)
     public void testBadHash() throws InterruptedException {
         final Transaction[] EMPTY = new Transaction[0];
         final String n1 = "n1";

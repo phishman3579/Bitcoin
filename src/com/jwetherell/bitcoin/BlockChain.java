@@ -80,7 +80,7 @@ public class BlockChain {
         if (block.blockLength > this.blockChain.size()) {
             // This block is in the future, wait for the block confirmation
             if (DEBUG)
-                System.err.println(owner+" found a future block. lengths="+this.blockChain.size()+"\n"+"block={\n"+block.toString()+"\n}");
+                System.out.println(owner+" found a future block. lengths="+this.blockChain.size()+"\n"+"block={\n"+block.toString()+"\n}");
             return Constants.Status.FUTURE_BLOCK;
         }
 

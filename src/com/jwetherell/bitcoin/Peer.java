@@ -85,6 +85,7 @@ public abstract class Peer {
 
                 // Get next message
                 data = recv.getQueue().poll();
+                Thread.yield();
             }
             Thread.yield();
         }
@@ -410,7 +411,18 @@ public abstract class Peer {
             addBlockToRecv(Queued.State.CONFIRM, from, block, data);
             sendWhois(from);
             return;
+        } else if (status == Constants.Status.FUTURE_BLOCK) {
+            if (DEBUG)
+                System.out.println(myName+" handleConfirmation2() future block.");
+            // Do not add to 'FutureBlockToRecv' since this block isn't confirmed
+            return;
+        } else if (status == Constants.Status.BAD_HASH) {
+            if (DEBUG)
+                System.out.println(myName+" handleConfirmation2() bad hash.");
+            sendRehash(block.transaction, data);
+            return;
         } else if (status != Constants.Status.SUCCESS) {
+            System.out.println(myName+" handleConfirmation2() error="+status);
             // Drop all other errors
             return;
         }

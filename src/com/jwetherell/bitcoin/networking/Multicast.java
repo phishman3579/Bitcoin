@@ -18,7 +18,7 @@ import com.jwetherell.bitcoin.interfaces.Sender;
 
 public class Multicast {
 
-    private static final boolean    DEBUG       = Boolean.getBoolean("debug");
+    private static final boolean    DEBUG       = Boolean.getBoolean("debug_all");
 
     public static final int         PORT        = 5000;
     public static final String      GROUP       = "225.4.5.6";
