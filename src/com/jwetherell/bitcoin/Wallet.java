@@ -26,9 +26,9 @@ import com.jwetherell.bitcoin.data_model.Transaction;
 public class Wallet extends Peer {
 
     // Number of zeros in prefix of has to compute as the proof of work.
-    private static final int                    NUMBER_OF_ZEROS         = 1;
+    private static final int                    NUMBER_OF_ZEROS     = 2;
     // Empty list
-    private static final Transaction[]          EMPTY = new Transaction[0];
+    private static final Transaction[]          EMPTY               = new Transaction[0];
 
     private final KeyPairGenerator              gen;
     private final SecureRandom                  random;

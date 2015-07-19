@@ -81,12 +81,12 @@ public class WalletTest {
         p2.shutdown();
         p3.shutdown();
 
-        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
-        Assert.assertTrue(p2.getBlockChain().equals(p3.getBlockChain()));
-
         Assert.assertTrue(p1.getBalance()==16);
         Assert.assertTrue(p2.getBalance()==14);
         Assert.assertTrue(p3.getBalance()==18);
+
+        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
+        Assert.assertTrue(p2.getBlockChain().equals(p3.getBlockChain()));
     }
 
     @Test(timeout=5000)
@@ -117,13 +117,13 @@ public class WalletTest {
         p1.shutdown();
         p2.shutdown();
 
-        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
-
         Assert.assertTrue(p1.getBalance()==29);
         Assert.assertTrue(p2.getBalance()==21);
+
+        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
     }
 
-    @Test(timeout=5000)
+    @Test//(timeout=5000)
     public void testCoinExchangers3() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";
@@ -161,12 +161,12 @@ public class WalletTest {
         p2.shutdown();
         p3.shutdown();
 
-        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
-        Assert.assertTrue(p2.getBlockChain().equals(p3.getBlockChain()));
-
         Assert.assertTrue(p1.getBalance()==24);
         Assert.assertTrue(p2.getBalance()==12);
         Assert.assertTrue(p3.getBalance()==12);
+
+        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
+        Assert.assertTrue(p2.getBlockChain().equals(p3.getBlockChain()));
     }
 
     @Test(timeout=5000)
@@ -214,10 +214,10 @@ public class WalletTest {
         p1.shutdown();
         p2.shutdown();
 
-        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
-
         Assert.assertTrue(p1.getBalance()==5);
         Assert.assertTrue(p2.getBalance()==45);
+
+        Assert.assertTrue(p1.getBlockChain().equals(p2.getBlockChain()));
     }
 
     private static class BadHashWallet extends Wallet {

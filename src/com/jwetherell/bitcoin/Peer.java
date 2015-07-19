@@ -228,7 +228,7 @@ public abstract class Peer {
 
     private void handleTransaction(String from, Transaction transaction, Data data) {
         // Let the app logic do what it needs to
-        PeerStatus knownPublicKey = handleTransaction(from, transaction, data.signature.array(), data.message.array());
+        final PeerStatus knownPublicKey = handleTransaction(from, transaction, data.signature.array(), data.message.array());
         if (knownPublicKey == PeerStatus.NO_PUBLIC_KEY) {
             addTransactionToRecv(Queued.State.NEW, from, transaction, data);
             sendWhois(from);
@@ -328,13 +328,13 @@ public abstract class Peer {
             // Yey! we got a confirmation from the community
 
             // Let's see if the nonce was computed correctly
-            boolean nonceComputedCorrectly = ProofOfWork.check(block.hash, block.nonce, block.numberOfZeros);
+            final boolean nonceComputedCorrectly = ProofOfWork.check(block.hash, block.nonce, block.numberOfZeros);
             if (!nonceComputedCorrectly) {
                 System.err.println(myName+" Nonce was not computed correctly. block={\n"+block.toString()+"\n}");
                 return;
             }
 
-            BlockChainStatus status = handleConfirmation(from, block, data.signature.array(), data.message.array());
+            final BlockChainStatus status = handleConfirmation(from, block, data.signature.array(), data.message.array());
             if (status == BlockChainStatus.NO_PUBLIC_KEY) {
                 addBlockToRecv(Queued.State.CONFIRM, from, block, data);
                 sendWhois(from);
@@ -361,7 +361,7 @@ public abstract class Peer {
         }
 
         // Let's mine this sucker.
-        long nonce = mining(block.hash, block.numberOfZeros);
+        final long nonce = mining(block.hash, block.numberOfZeros);
 
         // Hash looks good to me and I have computed a nonce, let everyone know
         block.confirmed = true;
