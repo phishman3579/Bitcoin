@@ -21,7 +21,7 @@ public class BlockTest {
         final Transaction trans = new Transaction(f, t, m, 10, EMPTY, EMPTY);
         byte[] prev = "I am a hash!".getBytes();
         byte[] hash = "I am also a hash!".getBytes();
-        final Block block = new Block(f,prev,hash,trans);
+        final Block block = new Block(f,prev,hash,trans,1);
         final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
         block.toBuffer(buffer);
         buffer.flip();

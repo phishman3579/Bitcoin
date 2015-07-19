@@ -71,20 +71,24 @@ public class Wallet extends Peer {
         this.blockChain = new BlockChain(name);
     }
 
-    public BlockChain getBlockChain() {
-        return blockChain;
-    }
-
-    public long getBalance() {
-        return blockChain.getBalance(myName);
-    }
-
     /**
      * {@inheritDoc}
      */
     @Override
     protected byte[] getPublicKey() {
         return bPublicKey;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public BlockChain getBlockChain() {
+        return blockChain;
+    }
+
+    public long getBalance() {
+        return blockChain.getBalance(myName);
     }
 
     /**
@@ -195,19 +199,17 @@ public class Wallet extends Peer {
         return PeerStatus.SUCCESS;
     }
 
-    /** Mine the nonce sent in the transaction **/
-    protected long mining(byte[] sha256, long numberOfZerosInPrefix) {
-        return ProofOfWork.solve(sha256, numberOfZerosInPrefix);
-    }
-
     /**
      * {@inheritDoc}
      */
     @Override
     protected PeerStatus handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes) {
         final PeerStatus status = checkSignature(from, signature, bytes);
-        if (status != PeerStatus.SUCCESS)
+        if (status != PeerStatus.SUCCESS) {
+            if (DEBUG)
+                System.err.println(myName+" handleTransaction() status="+status+"\n transaction={\n"+transaction.toString()+"\n}");
             return status;
+        }
 
         return PeerStatus.SUCCESS;
     }
@@ -218,8 +220,11 @@ public class Wallet extends Peer {
     @Override
     protected PeerStatus handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes) {
         final PeerStatus status = checkSignature(from, signature, bytes);
-        if (status != PeerStatus.SUCCESS)
+        if (status != PeerStatus.SUCCESS) {
+            if (DEBUG)
+                System.err.println(myName+" handleTransactionAck() status="+status+"\n transaction={\n"+transaction.toString()+"\n}");
             return status;
+        }
 
         return PeerStatus.SUCCESS;
     }
@@ -230,6 +235,11 @@ public class Wallet extends Peer {
     @Override
     protected BlockChainStatus checkTransaction(String from, Block block, byte[] signature, byte[] bytes) {
         final PeerStatus status = checkSignature(from, signature, bytes);
+        if (status != PeerStatus.SUCCESS) {
+            if (DEBUG)
+                System.err.println(myName+" checkTransaction() status="+status+"\n"+"block={\n"+block.toString()+"\n}\n");
+        }
+
         if (status == PeerStatus.NO_PUBLIC_KEY)
             return BlockChainStatus.NO_PUBLIC_KEY;
         if (status == PeerStatus.BAD_SIGNATURE)
@@ -237,7 +247,7 @@ public class Wallet extends Peer {
         if (status != PeerStatus.SUCCESS)
             return BlockChainStatus.UNKNOWN;
 
-        return blockChain.checkBlock(block);       
+        return blockChain.checkHash(block);       
     }
 
     /**
@@ -246,6 +256,11 @@ public class Wallet extends Peer {
     @Override
     protected BlockChainStatus handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
         final PeerStatus status = checkSignature(from, signature, bytes);
+        if (status != PeerStatus.SUCCESS) {
+            if (DEBUG)
+                System.err.println(myName+" checkTransaction() status="+status+"\n"+"block={\n"+block.toString()+"\n}\n");
+        }
+
         if (status == PeerStatus.NO_PUBLIC_KEY)
             return BlockChainStatus.NO_PUBLIC_KEY;
         if (status == PeerStatus.BAD_SIGNATURE)
@@ -254,6 +269,14 @@ public class Wallet extends Peer {
             return BlockChainStatus.UNKNOWN;
 
         return blockChain.addBlock(block);       
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected long mining(byte[] sha256, long numberOfZerosInPrefix) {
+        return ProofOfWork.solve(sha256, numberOfZerosInPrefix);
     }
 
     /**

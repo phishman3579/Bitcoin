@@ -19,8 +19,6 @@ import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class WalletTest {
 
-    private static final int    SLEEP_TIME     = 100; // millis
-
     // Create genesis entity
     private Wallet              genesis;
 
@@ -44,11 +42,11 @@ public class WalletTest {
             // Distribute genesis coins
             genesis.sendCoin(w.getName(), each);
             while (genesis.getBalance()!=balance || w.getBalance()!=each)
-                Thread.sleep(SLEEP_TIME);
+                Thread.yield();
         }
     }
 
-    @Test(timeout=5000)
+    @Test//(timeout=10000)
     public void testBadSignature() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";
@@ -69,14 +67,14 @@ public class WalletTest {
         // p1=16, p2=16, p3=16
 
         while (p1.getBalance()!=16 || p2.getBalance()!=16 || p3.getBalance()!=16) {
-            Thread.sleep(SLEEP_TIME);
+            Thread.yield();
         }
 
         p2.sendCoin(n3,2);
         // p1=16, p2=14, p3=18
 
         while (p1.getBalance()!=16 || p2.getBalance()!=14 || p3.getBalance()!=18) {
-            Thread.sleep(SLEEP_TIME);
+            Thread.yield();
         }
 
         Assert.assertTrue(p1.getBalance()==16);
@@ -88,7 +86,7 @@ public class WalletTest {
         p3.shutdown();
     }
 
-    @Test(timeout=5000)
+    @Test//(timeout=10000)
     public void testCoinExchangers2() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";
@@ -103,14 +101,14 @@ public class WalletTest {
         // genesis=0, p1=22, p2=28
 
         while (p1.getBalance()!=22 || p2.getBalance()!=28) {
-            Thread.sleep(SLEEP_TIME);
+            Thread.yield();
         }
 
         p2.sendCoin(n1, 7);
         // genesis=0, p1=29, p2=21
 
         while (p1.getBalance()!=29 || p2.getBalance()!=21) {
-            Thread.sleep(SLEEP_TIME);
+            Thread.yield();
         }
 
         Assert.assertTrue(p1.getBalance()==29);
@@ -120,7 +118,7 @@ public class WalletTest {
         p2.shutdown();
     }
 
-    @Test(timeout=5000)
+    @Test//(timeout=10000)
     public void testCoinExchangers3() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";
@@ -137,21 +135,21 @@ public class WalletTest {
         // p1=13, p2=19, p3=16
 
         while (p1.getBalance()!=13 || p2.getBalance()!=19 || p3.getBalance()!=16) {
-            Thread.sleep(SLEEP_TIME);
+            Thread.yield();
         }
 
         p2.sendCoin(n3, 7);
         // p1=13, p2=12, p3=23
 
         while (p1.getBalance()!=13 || p2.getBalance()!=12 || p3.getBalance()!=23) {
-            Thread.sleep(SLEEP_TIME);
+            Thread.yield();
         }
 
         p3.sendCoin(n1, 11);
         // p1=24, p2=12, p3=12
 
         while (p1.getBalance()!=24 || p2.getBalance()!=12 || p3.getBalance()!=12) {
-            Thread.sleep(SLEEP_TIME);
+            Thread.yield();
         }
 
         Assert.assertTrue(p1.getBalance()==24);
@@ -163,7 +161,7 @@ public class WalletTest {
         p3.shutdown();
     }
 
-    @Test(timeout=5000)
+    @Test//(timeout=10000)
     public void testBadHash() throws InterruptedException {
         final Transaction[] EMPTY = new Transaction[0];
         final String n1 = "n1";
@@ -180,21 +178,21 @@ public class WalletTest {
         // p1=15, p2=35
 
         while (p1.getBalance()!=15 || p2.getBalance()!=35) {
-            Thread.sleep(SLEEP_TIME);
+            Thread.yield();
         }
 
         // This block has a bad hash
         final Transaction block = new Transaction(n1, n2, "Please reject me!", 1, EMPTY, EMPTY);
         final byte[] prev = "This is a bad hash".getBytes();
         final byte[] hash = "This is a VERY bad hash".getBytes();
-        final Block trans = new Block(n1, prev, hash, block);
+        final Block trans = new Block(n1, prev, hash, block, 0);
         // Dummy data object, only care about the destination host and port
         final Data data = new Data(p1.getName(), p1.getHost(), p1.getPort(), p2.getName(), p2.getHost(), p2.getPort(), "".getBytes(), "".getBytes());
         p1.sendBlock(trans, data);
         // p1=15, p2=35 (nothing changes)
 
         while (p1.getBalance()!=15 || p2.getBalance()!=35) {
-            Thread.sleep(SLEEP_TIME);
+            Thread.yield();
         }
 
         // This should be accepted
@@ -202,7 +200,7 @@ public class WalletTest {
         // p1=5, p2=45
 
         while (p1.getBalance()!=5 || p2.getBalance()!=45) {
-            Thread.sleep(SLEEP_TIME);
+            Thread.yield();
         }
 
         Assert.assertTrue(p1.getBalance()==5);

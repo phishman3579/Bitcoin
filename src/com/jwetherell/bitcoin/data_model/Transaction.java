@@ -4,14 +4,16 @@ import java.nio.ByteBuffer;
 
 public class Transaction {
 
-    private static final int    FROM_LENGTH     = 4;
-    private static final int    TO_LENGTH       = 4;
-    private static final int    MSG_LENGTH      = 4;
-    private static final int    VALUE_LENGTH    = 4;
-    private static final int    LENGTH_LENGTH   = 4;
+    private static final int    FROM_LENGTH         = 4;
+    private static final int    TO_LENGTH           = 4;
+    private static final int    TIMESTAMP_LENGTH    = 8;
+    private static final int    MSG_LENGTH          = 4;
+    private static final int    VALUE_LENGTH        = 4;
+    private static final int    LENGTH_LENGTH       = 4;
 
     public String               from;
     public String               to;
+    public long                 timestamp;
     public String               msg;
     public int                  value;
 
@@ -23,6 +25,7 @@ public class Transaction {
     public Transaction(String from, String to, String msg, int value, Transaction[] inputs, Transaction[] outputs) {
         this.from = from;
         this.to = to;
+        this.timestamp = 0;
         this.msg = msg;
         this.value = value;
         this.inputs = new Transaction[inputs.length];
@@ -31,6 +34,10 @@ public class Transaction {
         this.outputs = new Transaction[outputs.length];
         for (int i=0; i<outputs.length; i++)
             this.outputs[i] = outputs[i];
+    }
+
+    public void updateTimestamp() {
+        this.timestamp = System.currentTimeMillis();
     }
 
     public int getBufferLength() {
@@ -42,6 +49,7 @@ public class Transaction {
             oLength += LENGTH_LENGTH + t.getBufferLength();
         int length =    LENGTH_LENGTH + iLength +
                         LENGTH_LENGTH + oLength +
+                        TIMESTAMP_LENGTH +
                         VALUE_LENGTH +
                         MSG_LENGTH + msg.getBytes().length + 
                         FROM_LENGTH + from.getBytes().length + 
@@ -68,6 +76,7 @@ public class Transaction {
             }
         }
 
+        buffer.putLong(timestamp);
         buffer.putInt(value);
 
         final int mLength = msg.length();
@@ -113,6 +122,7 @@ public class Transaction {
             }
         }
 
+        timestamp = buffer.getLong();
         value = buffer.getInt();
 
         final int mLength = buffer.getInt();
@@ -153,6 +163,8 @@ public class Transaction {
                 if (!(c.outputs[i].equals(outputs[i])))
                     return false;
         }
+        if (c.timestamp != this.timestamp)
+            return false;
         if (c.value != this.value)
             return false;
         if (!(c.from.equals(this.from)))
@@ -172,10 +184,11 @@ public class Transaction {
         StringBuilder builder = new StringBuilder();
         builder.append("inputs=").append(inputs.length).append("\n");
         builder.append("outputs=").append(outputs.length).append("\n");
+        builder.append("time='").append(timestamp).append("'\n");
         builder.append("value='").append(value).append("'\n");
         builder.append("from='").append(from).append("'\n");
         builder.append("to='").append(to).append("'\n");
-        builder.append("msg=[").append(msg).append("]\n");
+        builder.append("msg=[").append(msg).append("]");
         return builder.toString();
     }
 }

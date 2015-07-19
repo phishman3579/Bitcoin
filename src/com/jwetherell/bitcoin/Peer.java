@@ -22,28 +22,30 @@ import com.jwetherell.bitcoin.networking.TCP;
  */
 public abstract class Peer {
 
-    protected static enum                         PeerStatus              { NO_PUBLIC_KEY, BAD_SIGNATURE, SUCCESS, UNKNOWN };
+    protected static enum                         PeerStatus                   { NO_PUBLIC_KEY, BAD_SIGNATURE, SUCCESS, UNKNOWN };
 
-    protected static final boolean                DEBUG                   = Boolean.getBoolean("debug");
+    protected static final boolean                DEBUG                         = Boolean.getBoolean("debug");
 
-    private static final int                      HEADER_LENGTH           = 16;
-    private static final String                   WHOIS                   = "Who is          ";
-    private static final String                   IAM                     = "I am            ";
-    private static final String                   TRANSACTION             = "Transaction     ";
-    private static final String                   TRANSACTION_ACK         = "Transaction ACK ";
-    private static final String                   BLOCK                   = "Block           ";
-    private static final String                   VALIDATION              = "Validate        ";
+    private static final int                      HEADER_LENGTH                 = 16;
+    private static final String                   WHOIS                         = "Who is          ";
+    private static final String                   IAM                           = "I am            ";
+    private static final String                   TRANSACTION                   = "Transaction     ";
+    private static final String                   TRANSACTION_ACK               = "Transaction ACK ";
+    private static final String                   BLOCK                         = "Block           ";
+    private static final String                   VALIDATION                    = "Validate        ";
+    private static final String                   RESEND                        = "Resend          ";
+    private static final String                   REHASH                        = "Rehash          ";
 
-    private static final int                      KEY_LENGTH              = 4;
-    private static final int                      NAME_LENGTH             = 4;
+    private static final int                      KEY_LENGTH                    = 4;
+    private static final int                      NAME_LENGTH                   = 4;
 
-    private static final String                   EVERY_ONE               = "EVERYONE";
-    private static final byte[]                   NO_SIG                  = new byte[0];
+    private static final String                   EVERY_ONE                     = "EVERYONE";
+    private static final byte[]                   NO_SIG                        = new byte[0];
 
-    private final TCP.Peer.RunnableSend           runnableSendTcp         = new TCP.Peer.RunnableSend();
-    private final Multicast.Peer.RunnableSend     runnableSendMulti       = new Multicast.Peer.RunnableSend();
+    private final TCP.Peer.RunnableSend           runnableSendTcp               = new TCP.Peer.RunnableSend();
+    private final Multicast.Peer.RunnableSend     runnableSendMulti             = new Multicast.Peer.RunnableSend();
 
-    private final Listener                        listener                = new Listener() {
+    private final Listener                        listener                      = new Listener() {
         /**
          * {@inheritDoc}
          */
@@ -75,6 +77,11 @@ public abstract class Peer {
                     handleBlock(bytes,data);
                 } else if (hdr.equals(VALIDATION)) {
                     handleConfirmation(bytes,data);
+                    processFutureBlocksToRecv(from);
+                } else if (hdr.equals(RESEND)) {
+                    handleResend(bytes,data);
+                } else if (hdr.equals(REHASH)) {
+                    handleRehash(bytes,data);
                 } else {
                     System.err.println(myName+" Cannot handle msg. hdr="+hdr);
                 }
@@ -87,11 +94,12 @@ public abstract class Peer {
     };
 
     // Keep track of everyone's name -> ip+port
-    private final Map<String,Data>                peers                   = new ConcurrentHashMap<String,Data>();
+    private final Map<String,Data>                peers                         = new ConcurrentHashMap<String,Data>();
 
     // Pending msgs (This happens if we don't know the ip+port OR the public key of a host
-    private final Map<String,Queue<Queued>>       transactionsToSend      = new ConcurrentHashMap<String,Queue<Queued>>();
-    private final Map<String,Queue<Queued>>       transactionsToRecv      = new ConcurrentHashMap<String,Queue<Queued>>();
+    private final Map<String,Queue<Queued>>       transactionsToSend            = new ConcurrentHashMap<String,Queue<Queued>>();
+    private final Map<String,Queue<Queued>>       transactionsToRecv            = new ConcurrentHashMap<String,Queue<Queued>>();
+    private final Map<String,Queue<Queued>>       futureTransactionsToRecv      = new ConcurrentHashMap<String,Queue<Queued>>();
 
     private final Thread                          tcpSendThread;
     private final Thread                          tcpRecvThread;
@@ -102,8 +110,8 @@ public abstract class Peer {
     private final Queue<Data>                     sendTcpQueue;
     private final Queue<Data>                     sendMultiQueue;
 
-    protected final TCP.Peer.RunnableRecv         runnableRecvTcp         = new TCP.Peer.RunnableRecv(listener);
-    protected final Multicast.Peer.RunnableRecv   runnableRecvMulti       = new Multicast.Peer.RunnableRecv(listener);
+    protected final TCP.Peer.RunnableRecv         runnableRecvTcp               = new TCP.Peer.RunnableRecv(listener);
+    protected final Multicast.Peer.RunnableRecv   runnableRecvMulti             = new Multicast.Peer.RunnableRecv(listener);
     protected final String                        myName;
 
     protected Peer(String name) {
@@ -163,6 +171,8 @@ public abstract class Peer {
     public boolean isReady() {
         return (runnableRecvTcp.isReady() && runnableSendTcp.isReady() && runnableRecvMulti.isReady() && runnableSendMulti.isReady());
     }
+
+    public abstract BlockChain getBlockChain();
 
     /** Get encoded public key **/
     protected abstract byte[] getPublicKey();
@@ -285,7 +295,7 @@ public abstract class Peer {
 
     /** Create a transaction given the this block **/
     protected abstract Block getNextBlock(Transaction trans);
-    
+
     protected void sendBlock(Block block, Data data) {
         final byte[] msg = getBlockMsg(block);
         final byte[] sig = signMsg(msg);
@@ -295,13 +305,30 @@ public abstract class Peer {
 
     private void handleBlock(byte[] bytes, Data data) {
         final Block block = parseBlockMsg(bytes);
-        final BlockChainStatus status = checkTransaction(data.from, block, data.signature.array(), data.message.array());
         final String from = data.from;
+        handleBlock(from, block, data);
+    }
+
+    private void handleBlock(String from, Block block, Data data) {
+        final int length = this.getBlockChain().getLength();
+        final BlockChainStatus status = checkTransaction(data.from, block, data.signature.array(), data.message.array());
         if (status == BlockChainStatus.NO_PUBLIC_KEY) {
             addBlockToRecv(Queued.State.CONFIRM, from, block, data);
             sendWhois(from);
             return;
+        } else if (status == BlockChainStatus.BAD_HASH) {
+            System.out.println(myName+" handleBlock() bad hash.");
+            sendRehash(block.transaction, data);
+            return;
+        } else if (status == BlockChainStatus.FUTURE_BLOCK) {
+            System.out.println(myName+" handleBlock() future block.");
+            // If we have a transaction which is in the future, we are likely missing a previous block
+            // Save the block for later processing and ask the network for the missing block.
+            addFutureBlockToRecv(Queued.State.FUTURE, from, block, data);
+            sendResend(length);
+            return;
         } else if (status != BlockChainStatus.SUCCESS) {
+            System.out.println(myName+" handleBlock() error="+status);
             // Drop all other errors
             return;
         }
@@ -310,11 +337,20 @@ public abstract class Peer {
         sendConfirmation(block);
     }
 
+    /** multicast **/
     protected void sendConfirmation(Block block) {
         final byte[] msg = getConfirmationMsg(block);
         final byte[] sig = signMsg(msg);
         final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), EVERY_ONE, runnableRecvMulti.getHost(), runnableRecvMulti.getPort(), sig, msg);
         sendMultiQueue.add(data);
+    }
+
+    /** tcp **/
+    protected void sendConfirmation(Block block, Data data) {
+        final byte[] msg = getConfirmationMsg(block);
+        final byte[] sig = signMsg(msg);
+        final Data dataToSend = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), data.from, data.sourceAddr.getHostAddress(), data.sourcePort, sig, msg);
+        sendTcpQueue.add(dataToSend);
     }
 
     private void handleConfirmation(byte[] bytes, Data data) {
@@ -334,12 +370,25 @@ public abstract class Peer {
                 return;
             }
 
+            final int length = this.getBlockChain().getLength();
             final BlockChainStatus status = handleConfirmation(from, block, data.signature.array(), data.message.array());
             if (status == BlockChainStatus.NO_PUBLIC_KEY) {
                 addBlockToRecv(Queued.State.CONFIRM, from, block, data);
                 sendWhois(from);
                 return;
+            } else if (status == BlockChainStatus.BAD_HASH) {
+                System.out.println(myName+" handleConfirmation() bad hash.");
+                sendRehash(block.transaction, data);
+                return;
+            } else if (status == BlockChainStatus.FUTURE_BLOCK) {
+                System.out.println(myName+" handleConfirmation() future block.");
+                // If we have a transaction which is in the future, we are likely missing a previous block
+                // Save the block for later processing and ask the network for the missing block.
+                addFutureBlockToRecv(Queued.State.FUTURE, from, block, data);
+                sendResend(length);
+                return;
             } else if (status != BlockChainStatus.SUCCESS) {
+                System.out.println(myName+" handleConfirmation() error="+status);
                 // Drop all other errors
                 return;
             }
@@ -366,6 +415,10 @@ public abstract class Peer {
         // Hash looks good to me and I have computed a nonce, let everyone know
         block.confirmed = true;
         block.nonce = nonce;
+
+        if (DEBUG)
+            System.err.println(myName+" solved block. block={\n"+block.toString()+"\n}\n");
+
         sendConfirmation(block);
     }
 
@@ -377,6 +430,42 @@ public abstract class Peer {
 
     /** Mine the nonce sent in the transaction **/
     protected abstract long mining(byte[] sha256, long numberOfZerosInPrefix);
+
+    private void sendResend(int blockNumber) {
+        final byte[] msg = getResendBlockMsg(blockNumber);
+        final byte[] sig = signMsg(msg);
+        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), EVERY_ONE, runnableRecvMulti.getHost(), runnableRecvMulti.getPort(), sig, msg);
+        sendMultiQueue.add(data);
+    }
+
+    private void handleResend(byte[] bytes, Data data) {
+        final String from = data.from;
+        if (from.equals(myName))
+            return;
+
+        final int blockNumber = parseResendBlockMsg(bytes);
+        final int length = this.getBlockChain().getLength();
+        // I don't have the block, cannot help.
+        if (length<=blockNumber)
+            return;
+
+        final Block toSend = this.getBlockChain().getBlock(blockNumber);
+        sendConfirmation(toSend, data);
+    }
+
+    protected void sendRehash(Transaction transaction, Data data) {
+        final byte[] msg = getRehashMsg(transaction);
+        final byte[] sig = signMsg(msg);
+        final Data dataToSend = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), data.from, data.sourceAddr.getHostAddress(), data.sourcePort, sig, msg);
+        sendTcpQueue.add(dataToSend);
+    }
+
+    private void handleRehash(byte[] bytes, Data data) {
+        final Transaction transaction = parseRehashMsg(bytes);
+        final String from = data.from;
+        // hash was out of sync with the block chain, rehash it.
+        handleTransactionAck(from, transaction, data);
+    }
 
     private void addTransactionToSend(Queued.State state, String to, Transaction transaction) {
         final Queued q = new Queued(state, transaction, null);
@@ -403,7 +492,7 @@ public abstract class Peer {
             sendTcpQueue.add(data);
         }
     }
-   
+
     private void addTransactionToRecv(Queued.State state, String from, Transaction transaction, Data data) {
         final Queued q = new Queued(state, transaction, data);
         Queue<Queued> lc = transactionsToRecv.get(from);
@@ -441,9 +530,34 @@ public abstract class Peer {
         }
     }
 
+    private void addFutureBlockToRecv(Queued.State state, String from, Block block, Data data) {
+        final Queued q = new Queued(state, block, data);
+        Queue<Queued> lc = futureTransactionsToRecv.get(from);
+        if (lc == null) {
+            lc = new ConcurrentLinkedQueue<Queued>();
+            futureTransactionsToRecv.put(from, lc);
+        }
+        lc.add(q);
+    }
+
+    private void processFutureBlocksToRecv(String from) {
+        Queue<Queued> l = futureTransactionsToRecv.get(from);
+        if (l==null || l.size()==0)
+            return;
+        while (l.size()>0) {
+            final Queued q = l.poll();
+            if (q == null)
+                return;
+            if (q.state == Queued.State.FUTURE)
+                handleConfirmation(from, q.block, q.data);
+            else
+                System.err.println("Non-FUTURE queued in future blocks");
+        }
+    }
+
     private static final class Queued {
 
-        private enum                State {NEW, ACK, CONFIRM};
+        private enum                State {NEW, ACK, CONFIRM, FUTURE};
 
         private final State         state;
         private final Transaction   transaction;
@@ -460,8 +574,8 @@ public abstract class Peer {
         }
 
         private Queued(State state, Block block, Data data) {
-            if (state != State.CONFIRM)
-                throw new RuntimeException("Cannot have a non-CONFIRM with a Block");
+            if (state != State.CONFIRM && state != State.FUTURE)
+                throw new RuntimeException("Cannot have a non-CONFIRM/FUTURE with a Block");
             this.state = state;
             this.transaction = null;
             this.block = block;
@@ -619,6 +733,52 @@ public abstract class Peer {
         block.fromBuffer(buffer);
 
         return block;
+    }
+
+    public static final byte[] getResendBlockMsg(int blockNumber) {
+        final byte[] msg = new byte[HEADER_LENGTH + 4];
+
+        final ByteBuffer buffer = ByteBuffer.wrap(msg);
+        buffer.put(RESEND.getBytes());
+
+        buffer.putInt(blockNumber);
+
+        return msg;
+    }
+
+    public static final int parseResendBlockMsg(byte[] bytes) {
+        final ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        final byte [] bMsgType = new byte[HEADER_LENGTH];
+        buffer.get(bMsgType);
+
+        final int blockNumber = buffer.getInt();
+
+        return blockNumber;
+    }
+
+    public static final byte[] getRehashMsg(Transaction transaction) {
+        final byte[] msg = new byte[HEADER_LENGTH + transaction.getBufferLength()];
+        final ByteBuffer blockBuffer = ByteBuffer.allocate(transaction.getBufferLength());
+        transaction.toBuffer(blockBuffer);
+        blockBuffer.flip();
+
+        final ByteBuffer buffer = ByteBuffer.wrap(msg);
+        buffer.put(REHASH.getBytes());
+
+        buffer.put(blockBuffer);
+
+        return msg;
+    }
+
+    public static final Transaction parseRehashMsg(byte[] bytes) {
+        final ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        final byte [] bMsgType = new byte[HEADER_LENGTH];
+        buffer.get(bMsgType);
+
+        final Transaction transaction = new Transaction();
+        transaction.fromBuffer(buffer);
+
+        return transaction;
     }
 
     /**

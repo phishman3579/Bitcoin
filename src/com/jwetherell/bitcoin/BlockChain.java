@@ -3,8 +3,8 @@ package com.jwetherell.bitcoin;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.Transaction;
@@ -14,11 +14,13 @@ public class BlockChain {
     public static final String              NO_ONE              = "no one";
     public static final String              GENESIS_NAME        = "genesis";
 
-    public static enum                      BlockChainStatus    { NO_PUBLIC_KEY, BAD_HASH, BAD_SIGNATURE, BAD_INPUTS, DUPLICATE, SUCCESS, UNKNOWN };
+    public static enum                      BlockChainStatus    { NO_PUBLIC_KEY, FUTURE_BLOCK, BAD_HASH, BAD_SIGNATURE, BAD_INPUTS, DUPLICATE, SUCCESS, UNKNOWN };
 
-    private final Queue<Block>              blockChain          = new ConcurrentLinkedQueue<Block>();
-    private final Queue<Transaction>        transactions        = new ConcurrentLinkedQueue<Transaction>();
-    private final Queue<Transaction>        unused              = new ConcurrentLinkedQueue<Transaction>();
+    protected static final boolean          DEBUG               = Boolean.getBoolean("debug");
+
+    private final List<Block>               blockChain          = new CopyOnWriteArrayList<Block>();
+    private final List<Transaction>         transactions        = new CopyOnWriteArrayList<Transaction>();
+    private final List<Transaction>         unused              = new CopyOnWriteArrayList<Transaction>();
 
     private static final byte[]             INITIAL_HASH        = new byte[0];
 
@@ -39,12 +41,12 @@ public class BlockChain {
         final byte[] bytes = buffer.array();
         final byte[] nextHash = BlockChain.getNextHash(BlockChain.INITIAL_HASH, bytes);
 
-        GENESIS_BLOCK = new Block(NO_ONE, BlockChain.INITIAL_HASH, nextHash, GENESIS_TRANS);
+        GENESIS_BLOCK = new Block(NO_ONE, BlockChain.INITIAL_HASH, nextHash, GENESIS_TRANS, 0);
     }
 
     private final String                    owner;
 
-    private byte[]                          latestHash          = INITIAL_HASH;
+    private volatile byte[]                 latestHash          = INITIAL_HASH;
 
     public BlockChain(String owner) {
         this.owner = owner;
@@ -52,7 +54,17 @@ public class BlockChain {
         this.addBlock(GENESIS_BLOCK);
     }
 
-    public Queue<Transaction> getUnused() {
+    public int getLength() {
+        return blockChain.size();
+    }
+
+    public Block getBlock(int blockNumber) {
+        if (blockNumber>=blockChain.size())
+            return null;
+        return blockChain.get(blockNumber);
+    }
+
+    public List<Transaction> getUnused() {
         return unused;
     }
 
@@ -62,12 +74,18 @@ public class BlockChain {
         buffer.flip();
 
         final byte[] bytes = buffer.array();
-
         final byte[] nextHash = getNextHash(latestHash, bytes);
-        return (new Block(from, latestHash, nextHash, transaction));
+        return (new Block(from, latestHash, nextHash, transaction, this.blockChain.size()));
     }
 
-    public BlockChainStatus checkBlock(Block block) {
+    public BlockChainStatus checkHash(Block block) {
+        if (block.blockLength > this.blockChain.size()) {
+            // This block is in the future, wait for the block confirmation
+            if (DEBUG)
+                System.err.println(owner+" found a future block. lengths="+this.blockChain.size()+"\n"+"block={\n"+block.toString()+"\n}");
+            return BlockChainStatus.FUTURE_BLOCK;
+        }
+
         final Transaction transaction = block.transaction;
         final ByteBuffer buffer = ByteBuffer.allocate(transaction.getBufferLength());
         transaction.toBuffer(buffer);
@@ -76,9 +94,22 @@ public class BlockChain {
         final byte[] bytes = buffer.array();
         final byte[] nextHash = getNextHash(latestHash, bytes);
 
+        final byte[] incomingPrev = block.prev;
         final byte[] incomingHash = block.hash;
+
         if (!(Arrays.equals(incomingHash, nextHash))) {
-            System.err.println(owner+" Invalid hash on transaction.");
+            if (DEBUG) {
+                StringBuilder builder = new StringBuilder();
+                builder.append(owner).append(" Invalid hash on transaction from '").append(block.transaction.from).append("'\n");
+                builder.append("confirmed="+block.confirmed).append("\n");
+                builder.append("length=").append(this.blockChain.size()).append("\n");
+                builder.append("latest=["+bytesToHex(latestHash)+"]\n");
+                builder.append("next=["+bytesToHex(nextHash)+"]\n");
+                builder.append("incomingLength=").append(block.blockLength).append("\n");
+                builder.append("incomingPrev=["+bytesToHex(incomingPrev)+"]\n");
+                builder.append("incomingNext=["+bytesToHex(incomingHash)+"]\n");
+                System.err.println(builder.toString());
+            }
             return BlockChainStatus.BAD_HASH;
         }
 
@@ -92,7 +123,7 @@ public class BlockChain {
             return BlockChainStatus.DUPLICATE;
 
         // Check to see if the block's hash is correct
-        final BlockChainStatus status = checkBlock(block);
+        final BlockChainStatus status = checkHash(block);
         if (status != BlockChainStatus.SUCCESS)
             return status;
 
@@ -108,7 +139,8 @@ public class BlockChain {
         for (Transaction t : transaction.inputs) {
             boolean exists = unused.remove(t);
             if (exists == false) {
-                System.err.println(owner+" Bad inputs in block. block={\n"+block.toString()+"\n}");
+                if (DEBUG)
+                    System.err.println(owner+" Bad inputs in block. block={\n"+block.toString()+"\n}");
                 return BlockChainStatus.BAD_INPUTS;
             }
         }
@@ -118,9 +150,21 @@ public class BlockChain {
             unused.add(t);
 
         // Update the hash and add the new transaction to the list
+        final String prev = bytesToHex(latestHash);
+        final String next = bytesToHex(nextHash);
+
         latestHash = nextHash;
         blockChain.add(block);
         transactions.add(transaction);
+
+        if (DEBUG) {
+            final StringBuilder builder = new StringBuilder();
+            builder.append(owner).append(" updated hash from '").append(block.transaction.from).append("'\n");
+            builder.append("length=").append(this.blockChain.size()).append("\n");
+            builder.append("prev=[").append(prev).append("]\n");
+            builder.append("next=[").append(next).append("]\n");
+            System.err.println(builder.toString());
+        }
 
         return BlockChainStatus.SUCCESS;
     }
@@ -161,7 +205,7 @@ public class BlockChain {
     }
 
     public static final String bytesToHex(byte[] bytes) {
-        StringBuilder result = new StringBuilder();
+        final StringBuilder result = new StringBuilder();
         for (byte byt : bytes) 
             result.append(Integer.toString((byt & 0xff) + 0x100, 16).substring(1));
         return result.toString();
