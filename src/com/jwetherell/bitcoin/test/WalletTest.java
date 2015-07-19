@@ -5,6 +5,8 @@ import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.Signature;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -12,12 +14,27 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.jwetherell.bitcoin.BlockChain;
+import com.jwetherell.bitcoin.Constants.Status;
 import com.jwetherell.bitcoin.Wallet;
 import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.Transaction;
+import com.jwetherell.bitcoin.interfaces.TransactionListener;
 
 public class WalletTest {
+
+    private static final Set<String>            SUCCESSES   = new HashSet<String>();
+    private static final TransactionListener    LISTENER    = new TransactionListener() {
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void onTransaction(String uid, Transaction transaction, Status status) {
+            System.out.println("status="+status);
+            System.out.println("transaction={\n"+transaction.toString()+"\n}\n");
+            SUCCESSES.remove(uid);
+        }
+    };
 
     // Create genesis entity
     private Wallet              genesis;
@@ -40,13 +57,13 @@ public class WalletTest {
         for (Wallet w : wallets) {
             balance -= each;
             // Distribute genesis coins
-            genesis.sendCoin(w.getName(), each);
+            genesis.sendCoin(LISTENER, w.getName(), each);
             while (genesis.getBalance()!=balance || w.getBalance()!=each)
                 Thread.yield();
         }
     }
 
-    @Test(timeout=10000)
+    @Test//(timeout=10000)
     public void testBadSignature() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";
@@ -63,14 +80,14 @@ public class WalletTest {
         p1.switchKeys();
 
         // Send coin (which'll be rejected for a bad signature)
-        p1.sendCoin(n2,10);
+        p1.sendCoin(LISTENER, n2,10);
         // p1=16, p2=16, p3=16
 
         while (p1.getBalance()!=16 || p2.getBalance()!=16 || p3.getBalance()!=16) {
             Thread.yield();
         }
 
-        p2.sendCoin(n3,2);
+        p2.sendCoin(LISTENER, n3,2);
         // p1=16, p2=14, p3=18
 
         while (p1.getBalance()!=16 || p2.getBalance()!=14 || p3.getBalance()!=18) {
@@ -86,7 +103,7 @@ public class WalletTest {
         p3.shutdown();
     }
 
-    @Test(timeout=10000)
+    @Test//(timeout=10000)
     public void testCoinExchangers2() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";
@@ -97,14 +114,14 @@ public class WalletTest {
         distributeGenesisCoins(genesis,p1,p2);
         // genesis=0, p1=25, p2=25
 
-        p1.sendCoin(n2, 3);
+        p1.sendCoin(LISTENER, n2, 3);
         // genesis=0, p1=22, p2=28
 
         while (p1.getBalance()!=22 || p2.getBalance()!=28) {
             Thread.yield();
         }
 
-        p2.sendCoin(n1, 7);
+        p2.sendCoin(LISTENER, n1, 7);
         // genesis=0, p1=29, p2=21
 
         while (p1.getBalance()!=29 || p2.getBalance()!=21) {
@@ -118,7 +135,7 @@ public class WalletTest {
         p2.shutdown();
     }
 
-    @Test(timeout=10000)
+    @Test//(timeout=10000)
     public void testCoinExchangers3() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";
@@ -131,21 +148,21 @@ public class WalletTest {
         distributeGenesisCoins(genesis,p1,p2,p3);
         // genesis=2, p1=16, p2=16, p3=16
 
-        p1.sendCoin(n2, 3);
+        p1.sendCoin(LISTENER, n2, 3);
         // p1=13, p2=19, p3=16
 
         while (p1.getBalance()!=13 || p2.getBalance()!=19 || p3.getBalance()!=16) {
             Thread.yield();
         }
 
-        p2.sendCoin(n3, 7);
+        p2.sendCoin(LISTENER, n3, 7);
         // p1=13, p2=12, p3=23
 
         while (p1.getBalance()!=13 || p2.getBalance()!=12 || p3.getBalance()!=23) {
             Thread.yield();
         }
 
-        p3.sendCoin(n1, 11);
+        p3.sendCoin(LISTENER, n1, 11);
         // p1=24, p2=12, p3=12
 
         while (p1.getBalance()!=24 || p2.getBalance()!=12 || p3.getBalance()!=12) {
@@ -161,7 +178,7 @@ public class WalletTest {
         p3.shutdown();
     }
 
-    @Test(timeout=10000)
+    @Test//(timeout=10000)
     public void testBadHash() throws InterruptedException {
         final Transaction[] EMPTY = new Transaction[0];
         final String n1 = "n1";
@@ -174,7 +191,7 @@ public class WalletTest {
         // genesis=0, p1=25, p2=25
 
         // Send coin
-        p1.sendCoin(n2,10);
+        p1.sendCoin(LISTENER, n2,10);
         // p1=15, p2=35
 
         while (p1.getBalance()!=15 || p2.getBalance()!=35) {
@@ -196,7 +213,7 @@ public class WalletTest {
         }
 
         // This should be accepted
-        p1.sendCoin(n2,10);
+        p1.sendCoin(LISTENER, n2,10);
         // p1=5, p2=45
 
         while (p1.getBalance()!=5 || p2.getBalance()!=45) {

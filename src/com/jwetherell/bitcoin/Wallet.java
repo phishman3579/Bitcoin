@@ -14,9 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.jwetherell.bitcoin.BlockChain.BlockChainStatus;
 import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.Transaction;
+import com.jwetherell.bitcoin.interfaces.TransactionListener;
 
 /**
  * Class which handles the logic of maintaining the wallet including tracking serial numbers and public/private key encryption.
@@ -26,19 +26,19 @@ import com.jwetherell.bitcoin.data_model.Transaction;
 public class Wallet extends Peer {
 
     // Number of zeros in prefix of has to compute as the proof of work.
-    private static final int                    NUMBER_OF_ZEROS     = 2;
+    private static final int                                NUMBER_OF_ZEROS     = 2;
     // Empty list
-    private static final Transaction[]          EMPTY               = new Transaction[0];
+    private static final Transaction[]                      EMPTY               = new Transaction[0];
 
-    private final KeyPairGenerator              gen;
-    private final SecureRandom                  random;
-    private final Signature                     enc;
-    private final Signature                     dec;
-    private final KeyPair                       pair;
-    private final PrivateKey                    privateKey;
-    private final KeyFactory                    keyFactory;
-    private final PublicKey                     publicKey;
-    private final byte[]                        bPublicKey;
+    private final KeyPairGenerator                          gen;
+    private final SecureRandom                              random;
+    private final Signature                                 enc;
+    private final Signature                                 dec;
+    private final KeyPair                                   pair;
+    private final PrivateKey                                privateKey;
+    private final KeyFactory                                keyFactory;
+    private final PublicKey                                 publicKey;
+    private final byte[]                                    bPublicKey;
     {
         try {
             gen = KeyPairGenerator.getInstance("DSA", "SUN");
@@ -62,9 +62,9 @@ public class Wallet extends Peer {
     }
 
     // Keep track of everyone's name -> public key
-    private final Map<String,ByteBuffer>        publicKeys      = new ConcurrentHashMap<String,ByteBuffer>();
+    private final Map<String,ByteBuffer>                    publicKeys      = new ConcurrentHashMap<String,ByteBuffer>();
     // My BLockChain
-    private final BlockChain                    blockChain;
+    private final BlockChain                                blockChain;
 
     public Wallet(String name) {
         super(name);
@@ -148,7 +148,7 @@ public class Wallet extends Peer {
         return verified;
     }
 
-    public void sendCoin(String name, int value) {
+    public void sendCoin(TransactionListener listener, String name, int value) {
         final List<Transaction> inputList = new ArrayList<Transaction>();
         int coins = 0;
         for (Transaction t : this.blockChain.getUnused()) {
@@ -183,69 +183,71 @@ public class Wallet extends Peer {
 
         final String msg = value+" from "+myName+" to "+name;
         final Transaction transaction = new Transaction(myName, name, msg, value, inputs, outputs);
+
         super.sendTransaction(name, transaction);
     }
 
-    private PeerStatus checkSignature(String from, byte[] signature, byte[] bytes) {
+    private Constants.Status checkSignature(String from, byte[] signature, byte[] bytes) {
         if (!publicKeys.containsKey(from))
-            return PeerStatus.NO_PUBLIC_KEY;
+            return Constants.Status.NO_PUBLIC_KEY;
 
         final byte[] key = publicKeys.get(from).array();
         if (!verifyMsg(key, signature, bytes)) {
-            System.err.println(myName+" Bad signature on key from '"+from+"'");
-            return PeerStatus.BAD_SIGNATURE;
+            if (DEBUG)
+                System.err.println(myName+" Bad signature on key from '"+from+"'");
+            return Constants.Status.BAD_SIGNATURE;
         }
 
-        return PeerStatus.SUCCESS;
+        return Constants.Status.SUCCESS;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected PeerStatus handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes) {
-        final PeerStatus status = checkSignature(from, signature, bytes);
-        if (status != PeerStatus.SUCCESS) {
+    protected Constants.Status handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes) {
+        final Constants.Status status = checkSignature(from, signature, bytes);
+        if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
                 System.err.println(myName+" handleTransaction() status="+status+"\n transaction={\n"+transaction.toString()+"\n}");
             return status;
         }
 
-        return PeerStatus.SUCCESS;
+        return Constants.Status.SUCCESS;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected PeerStatus handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes) {
-        final PeerStatus status = checkSignature(from, signature, bytes);
-        if (status != PeerStatus.SUCCESS) {
+    protected Constants.Status handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes) {
+        final Constants.Status status = checkSignature(from, signature, bytes);
+        if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
                 System.err.println(myName+" handleTransactionAck() status="+status+"\n transaction={\n"+transaction.toString()+"\n}");
             return status;
         }
 
-        return PeerStatus.SUCCESS;
+        return Constants.Status.SUCCESS;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected BlockChainStatus checkTransaction(String from, Block block, byte[] signature, byte[] bytes) {
-        final PeerStatus status = checkSignature(from, signature, bytes);
-        if (status != PeerStatus.SUCCESS) {
+    protected Constants.Status checkTransaction(String from, Block block, byte[] signature, byte[] bytes) {
+        final Constants.Status status = checkSignature(from, signature, bytes);
+        if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
                 System.err.println(myName+" checkTransaction() status="+status+"\n"+"block={\n"+block.toString()+"\n}\n");
         }
 
-        if (status == PeerStatus.NO_PUBLIC_KEY)
-            return BlockChainStatus.NO_PUBLIC_KEY;
-        if (status == PeerStatus.BAD_SIGNATURE)
-            return BlockChainStatus.BAD_SIGNATURE;
-        if (status != PeerStatus.SUCCESS)
-            return BlockChainStatus.UNKNOWN;
+        if (status == Constants.Status.NO_PUBLIC_KEY)
+            return status;
+        if (status == Constants.Status.BAD_SIGNATURE)
+            return status;
+        if (status != Constants.Status.SUCCESS)
+            return status;
 
         return blockChain.checkHash(block);       
     }
@@ -254,21 +256,22 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected BlockChainStatus handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
-        final PeerStatus status = checkSignature(from, signature, bytes);
-        if (status != PeerStatus.SUCCESS) {
+    protected Constants.Status handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
+        final Constants.Status status = checkSignature(from, signature, bytes);
+        if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
                 System.err.println(myName+" checkTransaction() status="+status+"\n"+"block={\n"+block.toString()+"\n}\n");
         }
 
-        if (status == PeerStatus.NO_PUBLIC_KEY)
-            return BlockChainStatus.NO_PUBLIC_KEY;
-        if (status == PeerStatus.BAD_SIGNATURE)
-            return BlockChainStatus.BAD_SIGNATURE;
-        if (status != PeerStatus.SUCCESS)
-            return BlockChainStatus.UNKNOWN;
+        if (status == Constants.Status.NO_PUBLIC_KEY)
+            return status;
+        if (status == Constants.Status.BAD_SIGNATURE)
+            return status;
+        if (status != Constants.Status.SUCCESS)
+            return status;
 
-        return blockChain.addBlock(block);       
+        Constants.Status blockChainStatus = blockChain.addBlock(block);
+        return blockChainStatus;
     }
 
     /**

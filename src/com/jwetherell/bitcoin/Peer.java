@@ -6,11 +6,10 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import com.jwetherell.bitcoin.BlockChain.BlockChainStatus;
 import com.jwetherell.bitcoin.data_model.Transaction;
 import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.Block;
-import com.jwetherell.bitcoin.interfaces.Listener;
+import com.jwetherell.bitcoin.interfaces.MessageListener;
 import com.jwetherell.bitcoin.interfaces.Receiver;
 import com.jwetherell.bitcoin.networking.Multicast;
 import com.jwetherell.bitcoin.networking.TCP;
@@ -21,8 +20,6 @@ import com.jwetherell.bitcoin.networking.TCP;
  * Thread-Safe (Hopefully)
  */
 public abstract class Peer {
-
-    protected static enum                         PeerStatus                   { NO_PUBLIC_KEY, BAD_SIGNATURE, SUCCESS, UNKNOWN };
 
     protected static final boolean                DEBUG                         = Boolean.getBoolean("debug");
 
@@ -45,7 +42,7 @@ public abstract class Peer {
     private final TCP.Peer.RunnableSend           runnableSendTcp               = new TCP.Peer.RunnableSend();
     private final Multicast.Peer.RunnableSend     runnableSendMulti             = new Multicast.Peer.RunnableSend();
 
-    private final Listener                        listener                      = new Listener() {
+    private final MessageListener                        listener                      = new MessageListener() {
         /**
          * {@inheritDoc}
          */
@@ -230,29 +227,31 @@ public abstract class Peer {
         sendTcpQueue.add(data);
     }
 
-    private void handleTransaction(byte[] bytes, Data data) {
+    private Constants.Status handleTransaction(byte[] bytes, Data data) {
         final Transaction trans = parseTransactionMsg(bytes);
         final String from = data.from;
-        handleTransaction(from, trans, data);
+        return handleTransaction(from, trans, data);
     }
 
-    private void handleTransaction(String from, Transaction transaction, Data data) {
+    private Constants.Status handleTransaction(String from, Transaction transaction, Data data) {
         // Let the app logic do what it needs to
-        final PeerStatus knownPublicKey = handleTransaction(from, transaction, data.signature.array(), data.message.array());
-        if (knownPublicKey == PeerStatus.NO_PUBLIC_KEY) {
+        final Constants.Status status = handleTransaction(from, transaction, data.signature.array(), data.message.array());
+        if (status == Constants.Status.NO_PUBLIC_KEY) {
             addTransactionToRecv(Queued.State.NEW, from, transaction, data);
             sendWhois(from);
-            return;
-        } else if (knownPublicKey != PeerStatus.SUCCESS) {
-            return;
+            return status;
+        } else if (status != Constants.Status.SUCCESS) {
+            return status;
         }
 
         // Send an ACK msg
         ackTransaction(from, transaction);
+
+        return status;
     }
 
     /** What do you want to do now that you have received a transaction, return the KeyStatus **/
-    protected abstract PeerStatus handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes);
+    protected abstract Constants.Status handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes);
 
     private void ackTransaction(String to, Transaction transaction) {
         final Data d = peers.get(to);
@@ -277,12 +276,12 @@ public abstract class Peer {
 
     private void handleTransactionAck(String from, Transaction transaction, Data data) {
         // Let the app logic do what it needs to
-        PeerStatus knownPublicKey = handleTransactionAck(from, transaction, data.signature.array(), data.message.array());
-        if (knownPublicKey == PeerStatus.NO_PUBLIC_KEY) {
+        Constants.Status knownPublicKey = handleTransactionAck(from, transaction, data.signature.array(), data.message.array());
+        if (knownPublicKey == Constants.Status.NO_PUBLIC_KEY) {
             addTransactionToRecv(Queued.State.ACK, from, transaction, data);
             sendWhois(from);
             return;
-        } else if (knownPublicKey != PeerStatus.SUCCESS) {
+        } else if (knownPublicKey != Constants.Status.SUCCESS) {
             return;
         }
 
@@ -291,7 +290,7 @@ public abstract class Peer {
     }
 
     /** What do you want to do now that you received an ACK for a sent transaction, return the KeyStatus **/
-    protected abstract PeerStatus handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes);
+    protected abstract Constants.Status handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes);
 
     /** Create a transaction given the this block **/
     protected abstract Block getNextBlock(Transaction trans);
@@ -311,23 +310,25 @@ public abstract class Peer {
 
     private void handleBlock(String from, Block block, Data data) {
         final int length = this.getBlockChain().getLength();
-        final BlockChainStatus status = checkTransaction(data.from, block, data.signature.array(), data.message.array());
-        if (status == BlockChainStatus.NO_PUBLIC_KEY) {
+        final Constants.Status status = checkTransaction(data.from, block, data.signature.array(), data.message.array());
+        if (status == Constants.Status.NO_PUBLIC_KEY) {
             addBlockToRecv(Queued.State.CONFIRM, from, block, data);
             sendWhois(from);
             return;
-        } else if (status == BlockChainStatus.BAD_HASH) {
-            System.out.println(myName+" handleBlock() bad hash.");
+        } else if (status == Constants.Status.BAD_HASH) {
+            if (DEBUG)
+                System.out.println(myName+" handleBlock() bad hash.");
             sendRehash(block.transaction, data);
             return;
-        } else if (status == BlockChainStatus.FUTURE_BLOCK) {
-            System.out.println(myName+" handleBlock() future block.");
+        } else if (status == Constants.Status.FUTURE_BLOCK) {
+            if (DEBUG)
+                System.out.println(myName+" handleBlock() future block.");
             // If we have a transaction which is in the future, we are likely missing a previous block
             // Save the block for later processing and ask the network for the missing block.
             addFutureBlockToRecv(Queued.State.FUTURE, from, block, data);
             sendResend(length);
             return;
-        } else if (status != BlockChainStatus.SUCCESS) {
+        } else if (status != Constants.Status.SUCCESS) {
             System.out.println(myName+" handleBlock() error="+status);
             // Drop all other errors
             return;
@@ -366,32 +367,37 @@ public abstract class Peer {
             // Let's see if the nonce was computed correctly
             final boolean nonceComputedCorrectly = ProofOfWork.check(block.hash, block.nonce, block.numberOfZeros);
             if (!nonceComputedCorrectly) {
-                System.err.println(myName+" Nonce was not computed correctly. block={\n"+block.toString()+"\n}");
+                if (DEBUG)
+                    System.err.println(myName+" Nonce was not computed correctly. block={\n"+block.toString()+"\n}");
                 return;
             }
 
             final int length = this.getBlockChain().getLength();
-            final BlockChainStatus status = handleConfirmation(from, block, data.signature.array(), data.message.array());
-            if (status == BlockChainStatus.NO_PUBLIC_KEY) {
+            final Constants.Status status = handleConfirmation(from, block, data.signature.array(), data.message.array());
+            if (status == Constants.Status.NO_PUBLIC_KEY) {
                 addBlockToRecv(Queued.State.CONFIRM, from, block, data);
                 sendWhois(from);
                 return;
-            } else if (status == BlockChainStatus.BAD_HASH) {
-                System.out.println(myName+" handleConfirmation() bad hash.");
+            } else if (status == Constants.Status.BAD_HASH) {
+                if (DEBUG)
+                    System.out.println(myName+" handleConfirmation() bad hash.");
                 sendRehash(block.transaction, data);
                 return;
-            } else if (status == BlockChainStatus.FUTURE_BLOCK) {
-                System.out.println(myName+" handleConfirmation() future block.");
+            } else if (status == Constants.Status.FUTURE_BLOCK) {
+                if (DEBUG)
+                    System.out.println(myName+" handleConfirmation() future block.");
                 // If we have a transaction which is in the future, we are likely missing a previous block
                 // Save the block for later processing and ask the network for the missing block.
                 addFutureBlockToRecv(Queued.State.FUTURE, from, block, data);
                 sendResend(length);
                 return;
-            } else if (status != BlockChainStatus.SUCCESS) {
-                System.out.println(myName+" handleConfirmation() error="+status);
+            } else if (status != Constants.Status.SUCCESS) {
+                if (DEBUG)
+                    System.out.println(myName+" handleConfirmation() error="+status);
                 // Drop all other errors
                 return;
             }
+
             return;
         }
 
@@ -399,12 +405,12 @@ public abstract class Peer {
         if (from.equals(myName))
             return;
 
-        final BlockChainStatus status = checkTransaction(from, block, data.signature.array(), data.message.array());
-        if (status == BlockChainStatus.NO_PUBLIC_KEY) {
+        final Constants.Status status = checkTransaction(from, block, data.signature.array(), data.message.array());
+        if (status == Constants.Status.NO_PUBLIC_KEY) {
             addBlockToRecv(Queued.State.CONFIRM, from, block, data);
             sendWhois(from);
             return;
-        } else if (status != BlockChainStatus.SUCCESS) {
+        } else if (status != Constants.Status.SUCCESS) {
             // Drop all other errors
             return;
         }
@@ -423,10 +429,10 @@ public abstract class Peer {
     }
 
     /** What do you want to do now that you received a block, return the HashStatus **/
-    protected abstract BlockChainStatus checkTransaction(String from, Block block, byte[] signature, byte[] bytes);
+    protected abstract Constants.Status checkTransaction(String from, Block block, byte[] signature, byte[] bytes);
 
     /** What do you want to do now that you received a valid block, return the HashStatus **/
-    protected abstract BlockChainStatus handleConfirmation(String from, Block block, byte[] signature, byte[] bytes);
+    protected abstract Constants.Status handleConfirmation(String from, Block block, byte[] signature, byte[] bytes);
 
     /** Mine the nonce sent in the transaction **/
     protected abstract long mining(byte[] sha256, long numberOfZerosInPrefix);
@@ -550,8 +556,6 @@ public abstract class Peer {
                 return;
             if (q.state == Queued.State.FUTURE)
                 handleConfirmation(from, q.block, q.data);
-            else
-                System.err.println("Non-FUTURE queued in future blocks");
         }
     }
 

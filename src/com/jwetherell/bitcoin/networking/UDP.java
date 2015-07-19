@@ -11,7 +11,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.jwetherell.bitcoin.data_model.Data;
-import com.jwetherell.bitcoin.interfaces.Listener;
+import com.jwetherell.bitcoin.interfaces.MessageListener;
 import com.jwetherell.bitcoin.interfaces.Receiver;
 import com.jwetherell.bitcoin.interfaces.Sender;
 
@@ -74,11 +74,11 @@ public class UDP {
 
             private final ConcurrentLinkedQueue<Data>           toRecv      = new ConcurrentLinkedQueue<Data>();
             private final int                                   port;
-            private final Listener                              listener;
+            private final MessageListener                              listener;
 
             private volatile boolean                            isReady     = false;
 
-            public RunnableRecv(Listener listener) {
+            public RunnableRecv(MessageListener listener) {
                 run = true;
                 this.port = UDP.port++;
                 this.listener = listener;

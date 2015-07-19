@@ -4,7 +4,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.jwetherell.bitcoin.data_model.Data;
-import com.jwetherell.bitcoin.interfaces.Listener;
+import com.jwetherell.bitcoin.interfaces.MessageListener;
 import com.jwetherell.bitcoin.interfaces.Receiver;
 import com.jwetherell.bitcoin.networking.UDP;
 
@@ -18,7 +18,7 @@ public class UDPTest {
         final String to = "you";
         final byte[] sig = "sig".getBytes();
         final byte[] toSend = "Hello world.".getBytes();
-        final Listener listener = new Listener() {
+        final MessageListener listener = new MessageListener() {
             /**
              * {@inheritDoc}
              */

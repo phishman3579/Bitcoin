@@ -14,8 +14,6 @@ public class BlockChain {
     public static final String              NO_ONE              = "no one";
     public static final String              GENESIS_NAME        = "genesis";
 
-    public static enum                      BlockChainStatus    { NO_PUBLIC_KEY, FUTURE_BLOCK, BAD_HASH, BAD_SIGNATURE, BAD_INPUTS, DUPLICATE, SUCCESS, UNKNOWN };
-
     protected static final boolean          DEBUG               = Boolean.getBoolean("debug");
 
     private final List<Block>               blockChain          = new CopyOnWriteArrayList<Block>();
@@ -78,12 +76,12 @@ public class BlockChain {
         return (new Block(from, latestHash, nextHash, transaction, this.blockChain.size()));
     }
 
-    public BlockChainStatus checkHash(Block block) {
+    public Constants.Status checkHash(Block block) {
         if (block.blockLength > this.blockChain.size()) {
             // This block is in the future, wait for the block confirmation
             if (DEBUG)
                 System.err.println(owner+" found a future block. lengths="+this.blockChain.size()+"\n"+"block={\n"+block.toString()+"\n}");
-            return BlockChainStatus.FUTURE_BLOCK;
+            return Constants.Status.FUTURE_BLOCK;
         }
 
         final Transaction transaction = block.transaction;
@@ -110,21 +108,21 @@ public class BlockChain {
                 builder.append("incomingNext=["+bytesToHex(incomingHash)+"]\n");
                 System.err.println(builder.toString());
             }
-            return BlockChainStatus.BAD_HASH;
+            return Constants.Status.BAD_HASH;
         }
 
-        return BlockChainStatus.SUCCESS;
+        return Constants.Status.SUCCESS;
     }
 
     // synchronized to protected transactions/blockChain/unused from changing while processing
-    public synchronized BlockChainStatus addBlock(Block block) {
+    public synchronized Constants.Status addBlock(Block block) {
         // Already processed this block? Happens if a miner is slow and isn't first to send the block
         if (blockChain.contains(block))
-            return BlockChainStatus.DUPLICATE;
+            return Constants.Status.DUPLICATE;
 
         // Check to see if the block's hash is correct
-        final BlockChainStatus status = checkHash(block);
-        if (status != BlockChainStatus.SUCCESS)
+        final Constants.Status status = checkHash(block);
+        if (status != Constants.Status.SUCCESS)
             return status;
 
         final Transaction transaction = block.transaction;
@@ -141,7 +139,7 @@ public class BlockChain {
             if (exists == false) {
                 if (DEBUG)
                     System.err.println(owner+" Bad inputs in block. block={\n"+block.toString()+"\n}");
-                return BlockChainStatus.BAD_INPUTS;
+                return Constants.Status.BAD_INPUTS;
             }
         }
 
@@ -166,7 +164,7 @@ public class BlockChain {
             System.err.println(builder.toString());
         }
 
-        return BlockChainStatus.SUCCESS;
+        return Constants.Status.SUCCESS;
     }
 
     public long getBalance(String name) {

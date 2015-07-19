@@ -1,6 +1,6 @@
 package com.jwetherell.bitcoin.interfaces;
 
-public interface Listener {
+public interface MessageListener {
 
     public void onMessage(Receiver recv);
 
