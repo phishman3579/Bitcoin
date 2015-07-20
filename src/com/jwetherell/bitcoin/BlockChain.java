@@ -114,8 +114,7 @@ public class BlockChain {
         return Constants.Status.SUCCESS;
     }
 
-    // synchronized to protected transactions/blockChain/unused from changing while processing
-    public synchronized Constants.Status addBlock(Block block) {
+    public Constants.Status addBlock(Block block) {
         // Already processed this block? Happens if a miner is slow and isn't first to send the block
         if (blockChain.contains(block))
             return Constants.Status.DUPLICATE;

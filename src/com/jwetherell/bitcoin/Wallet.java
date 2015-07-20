@@ -26,7 +26,7 @@ import com.jwetherell.bitcoin.interfaces.TransactionListener;
 public class Wallet extends Peer {
 
     // Number of zeros in prefix of has to compute as the proof of work.
-    private static final int                                NUMBER_OF_ZEROS     = 2;
+    private static final int                                NUMBER_OF_ZEROS     = 3;
     // Empty list
     private static final Transaction[]                      EMPTY               = new Transaction[0];
 
@@ -114,8 +114,6 @@ public class Wallet extends Peer {
 
     /**
      * {@inheritDoc}
-     * 
-     * synchronized to protect enc from changing while processing
      */
     @Override
     protected synchronized byte[] signMsg(byte[] bytes) {
@@ -148,7 +146,9 @@ public class Wallet extends Peer {
         return verified;
     }
 
-    public void sendCoin(TransactionListener listener, String name, int value) {
+    // synchronized to protect the blockchain from chaing while processing
+    public synchronized void sendCoin(TransactionListener listener, String name, int value) {
+        // protect the blockchain from changing while processing
         final List<Transaction> inputList = new ArrayList<Transaction>();
         int coins = 0;
         for (Transaction t : this.blockChain.getUnused()) {
@@ -254,6 +254,8 @@ public class Wallet extends Peer {
 
     /**
      * {@inheritDoc}
+     * 
+     * synchronized to protect the blockchain from chaing while processing
      */
     @Override
     protected Constants.Status handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
