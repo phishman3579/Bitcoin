@@ -114,6 +114,8 @@ public class Wallet extends Peer {
 
     /**
      * {@inheritDoc}
+     * 
+     * synchronized to protect enc from changing while processing
      */
     @Override
     protected synchronized byte[] signMsg(byte[] bytes) {
@@ -258,7 +260,7 @@ public class Wallet extends Peer {
      * synchronized to protect the blockchain from chaing while processing
      */
     @Override
-    protected Constants.Status handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
+    protected synchronized Constants.Status handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
         final Constants.Status status = checkSignature(from, signature, bytes);
         if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
