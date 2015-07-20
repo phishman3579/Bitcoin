@@ -3,7 +3,7 @@ package com.jwetherell.bitcoin.data_model;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import com.jwetherell.bitcoin.BlockChain;
+import com.jwetherell.bitcoin.common.HashUtils;
 
 public class Block {
 
@@ -123,8 +123,8 @@ public class Block {
         builder.append("numberOfZerosToCompute=").append(numberOfZeros).append("\n");
         builder.append("nonce=").append(nonce).append("\n");
         builder.append("blockLength=").append(blockLength).append("\n");
-        builder.append("prev=[").append(BlockChain.bytesToHex(prev)).append("]\n");
-        builder.append("hash=[").append(BlockChain.bytesToHex(hash)).append("]\n");
+        builder.append("prev=[").append(HashUtils.bytesToHex(prev)).append("]\n");
+        builder.append("hash=[").append(HashUtils.bytesToHex(hash)).append("]\n");
         builder.append("block={").append("\n");
         builder.append(transaction.toString()).append("\n");
         builder.append("}");

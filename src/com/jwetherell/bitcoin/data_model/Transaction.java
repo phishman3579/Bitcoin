@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 import java.security.Signature;
 import java.util.Arrays;
 
-import com.jwetherell.bitcoin.BlockChain;
+import com.jwetherell.bitcoin.common.HashUtils;
 import com.jwetherell.bitcoin.common.KeyUtils;
 
 public class Transaction {
@@ -226,7 +226,7 @@ public class Transaction {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("signature=[").append(BlockChain.bytesToHex(this.signature.array())).append("]\n");
+        builder.append("signature=[").append(HashUtils.bytesToHex(this.signature.array())).append("]\n");
         builder.append("inputs=").append(inputs.length).append("\n");
         builder.append("outputs=").append(outputs.length).append("\n");
         builder.append("time='").append(timestamp).append("'\n");

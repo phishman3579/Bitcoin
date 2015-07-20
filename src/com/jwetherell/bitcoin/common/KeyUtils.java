@@ -5,7 +5,7 @@ import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.X509EncodedKeySpec;
 
-public class KeyUtils {
+public abstract class KeyUtils {
 
     public static final byte[] signMsg(Signature enc, byte[] bytes) {
         byte[] signed = null;
