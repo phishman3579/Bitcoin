@@ -21,7 +21,7 @@ See the [Transaction Class](https://github.com/phishman3579/Bitcoin/blob/master/
 
 ### Wallet
 
-The Wallet is how peers interact with the Bitcoin peer-to-peer network. The Wallet generates a public key and a private key which it uses to sign each Transaction. The pulic key is the send-to address used by the Bitcoin network. Each Wallet has the ability to send coins from your account to another account and it also has the ability to confirm Transaction (expect it's own) which it receives from the Bitcoin peer-to-peer network.
+The Wallet is how peers interact with the Bitcoin peer-to-peer network. The Wallet generates a public key and a private key which it uses to sign each Transaction. The pulic key is the send-to address used by the Bitcoin network. Each Wallet has the ability to send coins from your account to another account and it also has the ability to confirm Transactions (expect it's own) which it receives from the Bitcoin peer-to-peer network.
 
 ```
     Wallet {
@@ -138,6 +138,8 @@ If everything passes:
 
 The Blockchain is a simple structure which contains a list of confirmed Blocks, a list of Transactions in chronilogical order, a list of unused Transactions, and the current hash.
 
+Note: all transactions in the same block are said to have happened at the same time.
+
 ````
     Blockchain {
         List<Block>         blockchain
@@ -150,7 +152,7 @@ The Blockchain is a simple structure which contains a list of confirmed Blocks, 
 See the [Blockchain](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/BlockChain.java) for reference.
 
 
-What the Peer adds the Block to the Blockchain, the Blockchain will:
+When the Peer adds the Block to the Blockchain, the Blockchain will:
 * Check to see if the 'previousHash' from the Block matches it's 'currentHash', 
 * Check to see if the input Transactions from all the Transactions in the Block are 'unused'
 
