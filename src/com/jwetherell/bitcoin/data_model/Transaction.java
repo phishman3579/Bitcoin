@@ -12,14 +12,14 @@ public class Transaction {
     private static final int    FROM_LENGTH         = 4;
     private static final int    TO_LENGTH           = 4;
     private static final int    TIMESTAMP_LENGTH    = 8;
-    private static final int    MSG_LENGTH          = 4;
+    private static final int    HEADER_LENGTH       = 4;
     private static final int    VALUE_LENGTH        = 4;
     private static final int    LENGTH_LENGTH       = 4;
 
     public String               from;
     public String               to;
     public long                 timestamp;
-    public String               msg;
+    public String               header;
     public int                  value;
     public ByteBuffer           signature;
 
@@ -28,11 +28,11 @@ public class Transaction {
 
     public Transaction() { }
 
-    public Transaction(String from, String to, String msg, int value, byte[] signature, Transaction[] inputs, Transaction[] outputs) {
+    public Transaction(String from, String to, String header, int value, byte[] signature, Transaction[] inputs, Transaction[] outputs) {
         this.from = from;
         this.to = to;
         this.timestamp = 0;
-        this.msg = msg;
+        this.header = header;
         this.value = value;
         final byte[] sig = new byte[signature.length];
         System.arraycopy(signature, 0, sig, 0, signature.length);
@@ -50,11 +50,11 @@ public class Transaction {
     /** Create the aggregate Transaction and sign it **/
     public static final Transaction newSignedTransaction(Signature signature, 
                                                          String from, String to, 
-                                                         String msg, int value, 
+                                                         String header, int value, 
                                                          Transaction[] inputs, Transaction[] outputs)
     {
-        final byte[] sig = KeyUtils.signMsg(signature, msg.getBytes());
-        Transaction transaction = new Transaction(from, to, msg, value, sig, inputs, outputs);
+        final byte[] sig = KeyUtils.signMsg(signature, header.getBytes());
+        Transaction transaction = new Transaction(from, to, header, value, sig, inputs, outputs);
         return transaction;
     }
 
@@ -76,7 +76,7 @@ public class Transaction {
                         LENGTH_LENGTH + oLength +
                         TIMESTAMP_LENGTH +
                         VALUE_LENGTH +
-                        MSG_LENGTH + msg.getBytes().length + 
+                        HEADER_LENGTH + header.getBytes().length + 
                         FROM_LENGTH + from.getBytes().length + 
                         TO_LENGTH + to.getBytes().length;
         return length;
@@ -110,9 +110,9 @@ public class Transaction {
         buffer.putLong(timestamp);
         buffer.putInt(value);
 
-        final int mLength = msg.length();
+        final int mLength = header.length();
         buffer.putInt(mLength);
-        final byte[] mBytes = msg.getBytes();
+        final byte[] mBytes = header.getBytes();
         buffer.put(mBytes);
 
         final byte[] fBytes = from.getBytes();
@@ -166,7 +166,7 @@ public class Transaction {
         final int mLength = buffer.getInt();
         final byte[] mBytes = new byte[mLength];
         buffer.get(mBytes, 0, mLength);
-        msg = new String(mBytes);
+        header = new String(mBytes);
 
         final int fLength = buffer.getInt();
         final byte[] fBytes = new byte[fLength];
@@ -215,7 +215,7 @@ public class Transaction {
             return false;
         if (!(c.to.equals(this.to)))
             return false;
-        if (!(c.msg.equals(this.msg)))
+        if (!(c.header.equals(this.header)))
             return false;
         return true;
     }
@@ -233,7 +233,7 @@ public class Transaction {
         builder.append("value='").append(value).append("'\n");
         builder.append("from='").append(from).append("'\n");
         builder.append("to='").append(to).append("'\n");
-        builder.append("msg=[").append(msg).append("]");
+        builder.append("header=[").append(header).append("]");
         return builder.toString();
     }
 }

@@ -250,6 +250,14 @@ public class Wallet extends Peer {
      */
     @Override
     protected synchronized Constants.Status handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
+        // Let's see if the nonce was computed correctly
+        final boolean nonceComputedCorrectly = ProofOfWork.check(block.hash, block.nonce, block.numberOfZeros);
+        if (!nonceComputedCorrectly) {
+            if (DEBUG)
+                System.err.println(myName+" Nonce was not computed correctly. block={\n"+block.toString()+"\n}");
+            return Constants.Status.INCORRECT_NONCE;
+        }
+
         // Check signature on the block
         final Constants.Status status = checkSignature(from, signature, bytes);
         if (status != Constants.Status.SUCCESS) {
@@ -264,7 +272,7 @@ public class Wallet extends Peer {
             { // Check aggregate transaction
                 final String transactionFrom = transaction.from;
                 final byte[] transactionSignature = transaction.signature.array();
-                final byte[] transactionBytes = transaction.msg.getBytes();
+                final byte[] transactionBytes = transaction.header.getBytes();
                 final Constants.Status transactionStatus = checkSignature(transactionFrom, transactionSignature, transactionBytes);
                 if (transactionStatus != Constants.Status.SUCCESS) {
                     if (DEBUG)
@@ -277,7 +285,7 @@ public class Wallet extends Peer {
                 for (Transaction i : transaction.inputs) {
                     final String iFrom = i.from;
                     final byte[] iSignature = i.signature.array();
-                    final byte[] iBytes = i.msg.getBytes();
+                    final byte[] iBytes = i.header.getBytes();
                     final Constants.Status iStatus = checkSignature(iFrom, iSignature, iBytes);
                     if (iStatus != Constants.Status.SUCCESS) {
                         if (DEBUG)
@@ -290,7 +298,7 @@ public class Wallet extends Peer {
                 for (Transaction o : transaction.outputs) {
                     final String oFrom = o.from;
                     final byte[] oSignature = o.signature.array();
-                    final byte[] oBytes = o.msg.getBytes();
+                    final byte[] oBytes = o.header.getBytes();
                     final Constants.Status oStatus = checkSignature(oFrom, oSignature, oBytes);
                     if (oStatus != Constants.Status.SUCCESS) {
                         if (DEBUG)

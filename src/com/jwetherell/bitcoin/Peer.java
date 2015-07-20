@@ -366,14 +366,6 @@ public abstract class Peer {
         if (block.confirmed) {
             // Yey! we got a confirmation from the community
 
-            // Let's see if the nonce was computed correctly
-            final boolean nonceComputedCorrectly = ProofOfWork.check(block.hash, block.nonce, block.numberOfZeros);
-            if (!nonceComputedCorrectly) {
-                if (DEBUG)
-                    System.err.println(myName+" Nonce was not computed correctly. block={\n"+block.toString()+"\n}");
-                return;
-            }
-
             final int length = this.getBlockChain().getLength();
             final Constants.Status status = handleConfirmation(from, block, data.signature.array(), data.message.array());
             if (status == Constants.Status.NO_PUBLIC_KEY) {
