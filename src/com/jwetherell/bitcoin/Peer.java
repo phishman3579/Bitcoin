@@ -6,6 +6,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import com.jwetherell.bitcoin.common.Constants;
 import com.jwetherell.bitcoin.data_model.Transaction;
 import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.Block;
@@ -430,7 +431,7 @@ public abstract class Peer {
         }
 
         // Let's mine this sucker.
-        final long nonce = mining(block.hash, block.numberOfZeros);
+        final long nonce = mineHash(block.hash, block.numberOfZeros);
 
         // Hash looks good to me and I have computed a nonce, let everyone know
         block.confirmed = true;
@@ -449,7 +450,7 @@ public abstract class Peer {
     protected abstract Constants.Status handleConfirmation(String from, Block block, byte[] signature, byte[] bytes);
 
     /** Mine the nonce sent in the transaction **/
-    protected abstract long mining(byte[] sha256, long numberOfZerosInPrefix);
+    protected abstract long mineHash(byte[] sha256, long numberOfZerosInPrefix);
 
     private void sendResend(int blockNumber) {
         final byte[] msg = getResendBlockMsg(blockNumber);

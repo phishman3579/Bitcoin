@@ -1,6 +1,11 @@
 package com.jwetherell.bitcoin.data_model;
 
 import java.nio.ByteBuffer;
+import java.security.Signature;
+import java.util.Arrays;
+
+import com.jwetherell.bitcoin.BlockChain;
+import com.jwetherell.bitcoin.common.KeyUtils;
 
 public class Transaction {
 
@@ -16,24 +21,41 @@ public class Transaction {
     public long                 timestamp;
     public String               msg;
     public int                  value;
+    public ByteBuffer           signature;
 
     public Transaction[]        inputs;
     public Transaction[]        outputs;
 
     public Transaction() { }
 
-    public Transaction(String from, String to, String msg, int value, Transaction[] inputs, Transaction[] outputs) {
+    public Transaction(String from, String to, String msg, int value, byte[] signature, Transaction[] inputs, Transaction[] outputs) {
         this.from = from;
         this.to = to;
         this.timestamp = 0;
         this.msg = msg;
         this.value = value;
+        final byte[] sig = new byte[signature.length];
+        System.arraycopy(signature, 0, sig, 0, signature.length);
+        this.signature = ByteBuffer.wrap(sig);
+
         this.inputs = new Transaction[inputs.length];
         for (int i=0; i<inputs.length; i++)
             this.inputs[i] = inputs[i];
+
         this.outputs = new Transaction[outputs.length];
         for (int i=0; i<outputs.length; i++)
             this.outputs[i] = outputs[i];
+    }
+
+    /** Create the aggregate Transaction and sign it **/
+    public static final Transaction newSignedTransaction(Signature signature, 
+                                                         String from, String to, 
+                                                         String msg, int value, 
+                                                         Transaction[] inputs, Transaction[] outputs)
+    {
+        final byte[] sig = KeyUtils.signMsg(signature, msg.getBytes());
+        Transaction transaction = new Transaction(from, to, msg, value, sig, inputs, outputs);
+        return transaction;
     }
 
     public void updateTimestamp() {
@@ -44,10 +66,13 @@ public class Transaction {
         int iLength = 0;
         for (Transaction t : inputs)
             iLength += LENGTH_LENGTH + t.getBufferLength();
+
         int oLength = 0;
         for (Transaction t : outputs)
             oLength += LENGTH_LENGTH + t.getBufferLength();
-        int length =    LENGTH_LENGTH + iLength +
+
+        int length =    LENGTH_LENGTH + signature.limit() +
+                        LENGTH_LENGTH + iLength +
                         LENGTH_LENGTH + oLength +
                         TIMESTAMP_LENGTH +
                         VALUE_LENGTH +
@@ -58,7 +83,13 @@ public class Transaction {
     }
 
     public void toBuffer(ByteBuffer buffer) {
-        {
+        { // signature
+            buffer.putInt(signature.limit());
+            buffer.put(signature);
+            signature.flip();
+        }
+
+        { // inputs
             buffer.putInt(inputs.length);
             for (Transaction t : inputs) {
                 buffer.putInt(t.getBufferLength());
@@ -67,7 +98,7 @@ public class Transaction {
             }
         }
 
-        {
+        { // outputs
             buffer.putInt(outputs.length);
             for (Transaction t : outputs) {
                 buffer.putInt(t.getBufferLength());
@@ -94,7 +125,14 @@ public class Transaction {
     }
 
     public void fromBuffer(ByteBuffer buffer) {
-        {
+        { // signature
+            int sLength = buffer.getInt();
+            byte[] bSignature = new byte[sLength];
+            buffer.get(bSignature);
+            this.signature = ByteBuffer.wrap(bSignature);
+        }
+
+        { // inputs
             int iLength = buffer.getInt();
             this.inputs = new Transaction[iLength];
             for (int i=0; i<iLength; i++) {
@@ -108,7 +146,7 @@ public class Transaction {
             }
         }
 
-        {
+        { // ouputs
             int oLength = buffer.getInt();
             this.outputs = new Transaction[oLength];
             for (int i=0; i<oLength; i++) {
@@ -149,14 +187,20 @@ public class Transaction {
         if (!(o instanceof Transaction))
             return false;
         Transaction c = (Transaction) o;
-        {
+        { // signature
+            if (c.signature.limit() != this.signature.limit())
+                return false;
+            if (!(Arrays.equals(c.signature.array(), this.signature.array())))
+                return false;
+        }
+        { // inputs
             if (c.inputs.length != this.inputs.length)
                 return false;
             for (int i=0; i<c.inputs.length; i++)
                 if (!(c.inputs[i].equals(inputs[i])))
                     return false;
         }
-        {
+        { // ouputs
             if (c.outputs.length != this.outputs.length)
                 return false;
             for (int i=0; i<c.outputs.length; i++)
@@ -182,6 +226,7 @@ public class Transaction {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
+        builder.append("signature=[").append(BlockChain.bytesToHex(this.signature.array())).append("]\n");
         builder.append("inputs=").append(inputs.length).append("\n");
         builder.append("outputs=").append(outputs.length).append("\n");
         builder.append("time='").append(timestamp).append("'\n");

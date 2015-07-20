@@ -11,7 +11,8 @@ import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class BlockChainTest {
 
-    private static final Transaction[] EMPTY = new Transaction[0];
+    private static final Transaction[]  EMPTY       = new Transaction[0];
+    private static final byte[]         SIGNATURE   = "sig".getBytes();
 
     @Test
     public void test() {
@@ -19,7 +20,7 @@ public class BlockChainTest {
         final byte[] hash1;
         {
             final byte[] hash = "This is a hash".getBytes();
-            final Transaction block = new Transaction("me","you","msg",7,EMPTY,EMPTY);
+            final Transaction block = new Transaction("me","you","msg",7,SIGNATURE,EMPTY,EMPTY);
             final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
             block.toBuffer(buffer);
             buffer.flip();
@@ -31,7 +32,7 @@ public class BlockChainTest {
         final byte[] hash2;
         {
             byte[] hash = "This is a hash".getBytes();
-            final Transaction block = new Transaction("me","you","msg",7,EMPTY,EMPTY);
+            final Transaction block = new Transaction("me","you","msg",7,SIGNATURE,EMPTY,EMPTY);
             final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
             block.toBuffer(buffer);
             buffer.flip();

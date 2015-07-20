@@ -14,8 +14,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.jwetherell.bitcoin.BlockChain;
-import com.jwetherell.bitcoin.Constants.Status;
 import com.jwetherell.bitcoin.Wallet;
+import com.jwetherell.bitcoin.common.Constants.Status;
 import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.Transaction;
@@ -199,7 +199,7 @@ public class WalletTest {
         }
 
         // This block has a bad hash
-        final Transaction block = new Transaction(n1, n2, "Please reject me!", 1, EMPTY, EMPTY);
+        final Transaction block = Transaction.newSignedTransaction(p1.getSignature(), n1, n2, "Please reject me!", 1, EMPTY, EMPTY);
         final byte[] prev = "This is a bad hash".getBytes();
         final byte[] hash = "This is a VERY bad hash".getBytes();
         final Block trans = new Block(n1, prev, hash, block, 0);
@@ -231,6 +231,10 @@ public class WalletTest {
 
         public BadHashWallet(String name) {
             super(name);
+        }
+
+        public Signature getSignature() {
+            return enc;
         }
 
         public String getHost() {

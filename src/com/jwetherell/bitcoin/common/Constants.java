@@ -1,4 +1,4 @@
-package com.jwetherell.bitcoin;
+package com.jwetherell.bitcoin.common;
 
 public class Constants {
 

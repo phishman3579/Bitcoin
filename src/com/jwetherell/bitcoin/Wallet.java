@@ -8,12 +8,13 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.jwetherell.bitcoin.common.Constants;
+import com.jwetherell.bitcoin.common.KeyUtils;
 import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.Transaction;
 import com.jwetherell.bitcoin.interfaces.TransactionListener;
@@ -30,16 +31,16 @@ public class Wallet extends Peer {
     // Empty list
     private static final Transaction[]                      EMPTY               = new Transaction[0];
 
-    private final KeyPairGenerator                          gen;
-    private final SecureRandom                              random;
-    private final Signature                                 enc;
-    private final Signature                                 dec;
-    private final KeyPair                                   pair;
-    private final PrivateKey                                privateKey;
-    private final KeyFactory                                keyFactory;
-    private final PublicKey                                 publicKey;
-    private final byte[]                                    bPublicKey;
-    {
+    protected final KeyPairGenerator                        gen;
+    protected final SecureRandom                            random;
+    protected final Signature                               enc;
+    protected final Signature                               dec;
+    protected final KeyPair                                 pair;
+    protected final PrivateKey                              privateKey;
+    protected final KeyFactory                              keyFactory;
+    protected final PublicKey                               publicKey;
+    protected final byte[]                                  bPublicKey;
+    { // initialize the private/public key associated with this wallet
         try {
             gen = KeyPairGenerator.getInstance("DSA", "SUN");
             random = SecureRandom.getInstance("SHA1PRNG", "SUN");
@@ -68,6 +69,9 @@ public class Wallet extends Peer {
 
     public Wallet(String name) {
         super(name);
+        // add the initial pub key
+        this.publicKeys.put(BlockChain.NO_ONE, ByteBuffer.wrap(BlockChain.NO_ONE_PUB_KEY));
+        // initialize the blockchain
         this.blockChain = new BlockChain(name);
     }
 
@@ -119,14 +123,7 @@ public class Wallet extends Peer {
      */
     @Override
     protected synchronized byte[] signMsg(byte[] bytes) {
-        byte[] signed = null;
-        try {
-            enc.update(bytes);
-            signed = enc.sign();
-        } catch (Exception e) {
-            System.err.println(myName+" Could not encode msg. "+e);
-        }
-        return signed;
+        return KeyUtils.signMsg(enc, bytes);
     }
 
     /**
@@ -136,21 +133,11 @@ public class Wallet extends Peer {
      */
     @Override
     protected synchronized boolean verifyMsg(byte[] publicKey, byte[] signature, byte[] bytes) {
-        boolean verified = false;
-        try {
-            PublicKey key = keyFactory.generatePublic(new X509EncodedKeySpec(publicKey));
-            dec.initVerify(key);
-            dec.update(bytes);
-            verified = dec.verify(signature);
-        } catch (Exception e) {
-            System.err.println(myName+" Could not decode msg. "+e);
-        }
-        return verified;
+        return KeyUtils.verifyMsg(keyFactory, dec, publicKey, signature, bytes);
     }
 
-    // synchronized to protect the blockchain from chaing while processing
+    // synchronized to protect the blockchain from changing while processing
     public synchronized void sendCoin(TransactionListener listener, String name, int value) {
-        // protect the blockchain from changing while processing
         final List<Transaction> inputList = new ArrayList<Transaction>();
         int coins = 0;
         for (Transaction t : this.blockChain.getUnused()) {
@@ -171,20 +158,22 @@ public class Wallet extends Peer {
 
         List<Transaction> outputList = new ArrayList<Transaction>();
         if (coins > value) {
-            // I get some change back
+            // I get some change back, so add myself as an output
             final int myCoins = coins - value;
-            final Transaction t = new Transaction(myName, myName, "I get some change back.", myCoins, inputs, EMPTY);
+            final String msg = "I get some change back.";
+            final Transaction t = Transaction.newSignedTransaction(enc, myName, myName, msg, myCoins, inputs, EMPTY);
             outputList.add(t);
         }
-        final Transaction t = new Transaction(myName, name, "Here are some coins for you", value, inputs, EMPTY);
+        final String msg = "Here are some coins for you";
+        final Transaction t = Transaction.newSignedTransaction(enc, myName, name, msg, value, inputs, EMPTY);
         outputList.add(t);
 
         final Transaction[] outputs = new Transaction[outputList.size()];
         for (int i=0; i<outputList.size(); i++)
             outputs[i] = outputList.get(i);
 
-        final String msg = value+" from "+myName+" to "+name;
-        final Transaction transaction = new Transaction(myName, name, msg, value, inputs, outputs);
+        final String myMsg = value+" from "+myName+" to "+name;
+        final Transaction transaction = Transaction.newSignedTransaction(enc, myName, name, myMsg, value, inputs, outputs);
 
         super.sendTransaction(name, transaction);
     }
@@ -211,7 +200,7 @@ public class Wallet extends Peer {
         final Constants.Status status = checkSignature(from, signature, bytes);
         if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
-                System.err.println(myName+" handleTransaction() status="+status+"\n transaction={\n"+transaction.toString()+"\n}");
+                System.err.println(myName+" handleTransaction() status="+status+"\n"+"transaction={\n"+transaction.toString()+"\n}");
             return status;
         }
 
@@ -226,7 +215,7 @@ public class Wallet extends Peer {
         final Constants.Status status = checkSignature(from, signature, bytes);
         if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
-                System.err.println(myName+" handleTransactionAck() status="+status+"\n transaction={\n"+transaction.toString()+"\n}");
+                System.err.println(myName+" handleTransactionAck() status="+status+"\n"+"transaction={\n"+transaction.toString()+"\n}");
             return status;
         }
 
@@ -257,32 +246,59 @@ public class Wallet extends Peer {
     /**
      * {@inheritDoc}
      * 
-     * synchronized to protect the blockchain from chaing while processing
+     * synchronized to protect the blockchain from changing while processing
      */
     @Override
     protected synchronized Constants.Status handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
+        // Check signature on the block
         final Constants.Status status = checkSignature(from, signature, bytes);
         if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
                 System.err.println(myName+" checkTransaction() status="+status+"\n"+"block={\n"+block.toString()+"\n}\n");
         }
-
-        if (status == Constants.Status.NO_PUBLIC_KEY)
-            return status;
-        if (status == Constants.Status.BAD_SIGNATURE)
-            return status;
         if (status != Constants.Status.SUCCESS)
             return status;
 
-        Constants.Status blockChainStatus = blockChain.addBlock(block);
-        return blockChainStatus;
+        // Check signature on the aggregate transaction and it's inputs/outputs
+        {
+            final Transaction transaction = block.transaction;
+            final String transactionFrom = transaction.from;
+            final byte[] transactionSignature = transaction.signature.array();
+            final byte[] transactionBytes = transaction.msg.getBytes();
+            final Constants.Status transactionStatus = checkSignature(transactionFrom, transactionSignature, transactionBytes);
+            if (transactionStatus != Constants.Status.SUCCESS)
+                return status;
+
+            { // check signature on inputs
+                for (Transaction i : transaction.inputs) {
+                    final String iFrom = i.from;
+                    final byte[] iSignature = i.signature.array();
+                    final byte[] iBytes = i.msg.getBytes();
+                    final Constants.Status iStatus = checkSignature(iFrom, iSignature, iBytes);
+                    if (iStatus != Constants.Status.SUCCESS)
+                        return status;
+                }
+            }
+            { // check signature on outputs
+                for (Transaction o : transaction.outputs) {
+                    final String oFrom = o.from;
+                    final byte[] oSignature = o.signature.array();
+                    final byte[] oBytes = o.msg.getBytes();
+                    final Constants.Status oStatus = checkSignature(oFrom, oSignature, oBytes);
+                    if (oStatus != Constants.Status.SUCCESS)
+                        return status;
+                }
+            }
+        }
+
+        return blockChain.addBlock(block);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected long mining(byte[] sha256, long numberOfZerosInPrefix) {
+    protected long mineHash(byte[] sha256, long numberOfZerosInPrefix) {
         return ProofOfWork.solve(sha256, numberOfZerosInPrefix);
     }
 

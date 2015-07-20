@@ -10,7 +10,8 @@ import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class PeerTest {
 
-    private static final Transaction[] EMPTY = new Transaction[0];
+    private static final Transaction[]  EMPTY       = new Transaction[0];
+    private static final byte[]         SIGNATURE   = "sig".getBytes();
 
     @Test
     public void testHello() {
@@ -32,7 +33,7 @@ public class PeerTest {
 
     @Test
     public void testTransaction() {
-        final Transaction c1 = new Transaction("me","you","I give you 1 coin", 1, EMPTY, EMPTY);
+        final Transaction c1 = new Transaction("me","you","I give you 1 coin", 1, SIGNATURE, EMPTY, EMPTY);
         byte[] b = Peer.getTransactionMsg(c1);
         final Transaction c2 = Peer.parseTransactionMsg(b);
 
@@ -41,7 +42,7 @@ public class PeerTest {
 
     @Test
     public void testTransactionAck() {
-        final Transaction c1 = new Transaction("me","you","I give you 2 coins", 2, EMPTY, EMPTY);
+        final Transaction c1 = new Transaction("me","you","I give you 2 coins", 2, SIGNATURE, EMPTY, EMPTY);
         byte[] b = Peer.getTransactionAckMsg(c1);
         final Transaction c2 = Peer.parseTransactionAckMsg(b);
 

@@ -1,17 +1,43 @@
 package com.jwetherell.bitcoin;
 
 import java.nio.ByteBuffer;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.Signature;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import com.jwetherell.bitcoin.common.Constants;
 import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class BlockChain {
 
     public static final String              NO_ONE              = "no one";
+    public static final Signature           NO_ONE_SIGNATURE;
+    public static final byte[]              NO_ONE_PUB_KEY;
+    static {
+        try {
+            final KeyPairGenerator gen = KeyPairGenerator.getInstance("DSA", "SUN");
+            final SecureRandom random = SecureRandom.getInstance("SHA1PRNG", "SUN");
+            gen.initialize(512, random);
+
+            final KeyPair pair = gen.generateKeyPair();
+            final PrivateKey privateKey = pair.getPrivate();
+            NO_ONE_SIGNATURE = Signature.getInstance("SHA1withDSA", "SUN");
+            NO_ONE_SIGNATURE.initSign(privateKey);
+
+            final PublicKey publicKey = pair.getPublic();
+            NO_ONE_PUB_KEY = publicKey.getEncoded();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
     public static final String              GENESIS_NAME        = "genesis";
 
     protected static final boolean          DEBUG               = Boolean.getBoolean("debug");
@@ -24,13 +50,16 @@ public class BlockChain {
 
     private static final Transaction        GENESIS_TRANS;
     private static final Block              GENESIS_BLOCK;
-
     static {
+        // To start the block chain, we have an initial transaction which has no inputs and one output which
+        // is given to the genesis. This is the only transaction which has no inputs.
         final Transaction[] empty = new Transaction[0];
         final Transaction[] output = new Transaction[1];
-        output[0] = new Transaction(NO_ONE, GENESIS_NAME, "Genesis gets 50 coins.", 50, empty, empty);
+        final String outputMsg = "Genesis gets 50 coins.";
+        output[0] = Transaction.newSignedTransaction(NO_ONE_SIGNATURE, NO_ONE, GENESIS_NAME, outputMsg, 50, empty, empty);
 
-        GENESIS_TRANS = new Transaction(NO_ONE, GENESIS_NAME, "Genesis transfer.", 0, empty, output);
+        final String msg = "Genesis transfer.";
+        GENESIS_TRANS = Transaction.newSignedTransaction(NO_ONE_SIGNATURE, NO_ONE, GENESIS_NAME, msg, 0, empty, output);
 
         final ByteBuffer buffer = ByteBuffer.allocate(GENESIS_TRANS.getBufferLength());
         GENESIS_TRANS.toBuffer(buffer);
@@ -184,7 +213,7 @@ public class BlockChain {
     }
 
     public static final byte[] getNextHash(byte[] hash, byte[] bytes) {
-        final String string = new String(hash) + new String(bytes);
+        final String string = new String(hash) + new String(bytesToHex(bytes));
         final byte[] output = calculateSha256(string);
         return output;
     }

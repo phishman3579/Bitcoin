@@ -1,6 +1,6 @@
 package com.jwetherell.bitcoin.interfaces;
 
-import com.jwetherell.bitcoin.Constants;
+import com.jwetherell.bitcoin.common.Constants;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
 public interface TransactionListener {
