@@ -88,7 +88,7 @@ Each peer on the Bitcoin network will receive the Transaction and try to confirm
 To confirm a Transaction, a Peer will:
 * Check the Signature of Transaction against the public key of the sender. 
 
-If it passes, the Peer will:
+If it passes:
 * Send the confirmed Transaction to the Bitcoin network.
 
 The confirmed Transaction (#4) is added to a pool of confirmed Transactions. Peers (also called Miners) will gather confirmed Transactions from the pool and put them into a Block. A Block contains a number of confirmed Transactions, the Miner's signature, and a couple of other fields used for "Proof of work" processing.
@@ -130,10 +130,11 @@ Peers on the Bitcoin network will receive the Block and start confirming it.
 To confirm the Block, A Peer will:
 * Make sure the 'nonce' satisfies the "Proof of work"
 * Check the Block's signature 
-* Check the signature of each Trasaction in the Block. 
+* Check the signature of each Trasaction in the Block.
 
-If it passes, the peer will:
+If everything passes:
 * Add the block to it's Blockchain.
+* Send the confirmed Block to the Bitcoin network
 
 The Blockchain is a simple structure which contains a list of confirmed Blocks, a list of Transactions in chronilogical order, a list of unused Transactions, and the current hash.
 
@@ -192,4 +193,3 @@ Based off of:
 http://www.michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/
 http://www.imponderablethings.com/2013/07/how-bitcoin-works-under-hood.html
 http://www.oreilly.com/pub/e/3277
-
