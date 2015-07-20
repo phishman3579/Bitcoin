@@ -82,38 +82,74 @@ The Wallet will use it's private key to sign the Header of the Aggregate Transac
 
 Then it will send Transaction #4 to the Bitcoin network for confirmation. Each peer on the Bitcoin network will receive the Transaction and try to confirm it. To confirm a Transaction, a peer would check the Signature on the Header of the Transaction and see if it matches the public key of the sender. If the Signature matches, it'll send a confirmed Transaction to the Bitcoin network.
 
-The confirmed Transaction (#4) is added to a pool of confirmed Transactions. Peers (also called Miners) will gather confirmed Transactions from the pool and put them into a Block. A Block contains a number of confirmed Transactions, zeros for proof of work, a nonce , previous hash, next hash, and a signature.
-
-Miners will create an 'aggregate hash' from all the confirmed Transactions, they will then go through the process of "Proof of work". The goal of the "Proof of work" is to create a hash which begins with 'zeros' number of zeros. "Proof of work" is designed to be processor intensive add adds randomness to the time it takes to process a Block. A Miner will take the 'aggregate hash' and append a random integer (called a nonce) to it. It will then create a new hash from 'agrregate hash + nonce' and see if it solves the "Proof of work", the process will repeate until it finds a nonce which solves the "Proof of work"
-
-See the [Block Class](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/data_model/Block.java)  and [Proof of work](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/ProofOfWork.java) for reference.
-for reference.
-
-Once a Miner finds a nonce which solves the "Proof of work", it can send the Block to the Bitcoin network for confirmation. It will also create another hash (nextHash) using the 'previousHash' and the 'aggregate hash' which'll be used by the Blockchain once confirmed.
+The confirmed Transaction (#4) is added to a pool of confirmed Transactions. Peers (also called Miners) will gather confirmed Transactions from the pool and put them into a Block. A Block contains a number of confirmed Transactions, the Miner's signature, and a couple of other fields used for "Proof of work" processing.
 
 ```
     Block {
+      Transaction[]     transactions
+      int               nonce
+      int               zeros
+      byte[]            previousHash
+      byte[]            nextHash
+      byte[]            signature
+    }
+```
+
+See the [Block Class](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/data_model/Block.java) for reference.
+
+Miners will create an 'aggregate hash' from all the confirmed Transactions, they will then go through the process of "Proof of work". The goal of the "Proof of work" is to create a hash which begins with a random number of zeros (see the zero's field). "Proof of work" is designed to be processor intensive which adds randomness to the time it takes to process a Block. A Miner will take the 'aggregate hash' and append a random integer (called a nonce) to it. It will then create a new hash from 'agrregate hash + nonce' and see if it solves the "Proof of work", the process will repeat until it finds a nonce which satisfies the "Proof of work"
+
+See the [Proof of work](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/ProofOfWork.java) for reference.
+
+Once a Miner finds a nonce which satisfies the "Proof of work", it will create a hash (see 'nextHash') using the Blockchain's current hash (see 'previousHash') and the 'aggregate hash' which will be used by the Blockchain once confirmed.
+
+```
+    Block #1 {
       Transaction[]     transactions    { Transaction #4 }
-      int               nonce           21080;
+      int               nonce           453;
       int               zeros           3;
+      byte[]            previousHash    "Blockchain hash #1";
+      byte[]            nextHash        "Blockchain hash #2";
       byte[]            signature       "Miner's signature";
-      byte[]            previousHash    "Current hash on the Blockchain";
-      byte[]            nextHash        "Next hash for the blockchain";
     }
 ```
 
 Peers on the Bitcoin network will receive the Block and start confirming it. To confirm the Block, the peer will check the nonce, check the Block's signature and the signature of each Trasaction in the Block. It will then try and add the block to it's Blockchain.
 
-The Blockchain is a simple structure which contains a list of confirmed Blocks, a list of Transactions in chronilogical order, and the current hash.
+The Blockchain is a simple structure which contains a list of confirmed Blocks, a list of Transactions in chronilogical order, a list of unused Transactions, and the current hash.
 
 ````
     Blockchain {
-        List<Block>         blockchain;
-        List<Transactions>  transactions;
-        byte[]              currentHash;
+        List<Block>         blockchain
+        List<Transactions>  transactions
+        List<Transaction>   unused
+        byte[]              currentHash
     }
 ```
 
+See the [Blockchain](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/BlockChain.java) for reference.
 
+
+The Blockchain will check to see if the 'previousHash' from the Block matches it's 'currentHash', it will then check to see if the input Transactions from all the Transactions in the Block are in the 'unused' Transaction list. If everything passes, the Block is added to the 'blockChain', the Transaction is added to the 'transactions' list, all 'input' transactions are removed from the 'unused' list, all the 'output' transactions are added to the 'unused' list, and 'currentHash' is updated to 'nextHash' from the current Block.
+
+````
+    Current Blockchain {
+        List<Block>         blockchain      { Block #0 }
+        List<Transactions>  transactions    { Transaction #0 }
+        List<Transaction>   unused          { Transaction #1, Transaction #2, Transaction #3 }
+        byte[]              currentHash     "Blockchain hash #1"
+    }
+```
+
+Updated Blockchain.
+
+````
+    Blockchain {
+        List<Block>         blockchain      { Block #0, Block #1 };
+        List<Transactions>  transactions    { Transaction #0, Transaction #4 }
+        List<Transaction>   unused          { Transaction #3, Transaction #5, Transaction #6 }
+        byte[]              currentHash     "Blockchain hash #2"
+    }
+```
 
 Based off of http://www.michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/
