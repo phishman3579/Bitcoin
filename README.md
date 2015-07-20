@@ -20,7 +20,7 @@ See the [Transaction Class](https://github.com/phishman3579/Bitcoin/blob/master/
 
 ### Wallet
 
-The Wallet is how you interact with the Bitcoin peer-to-peer network. The Wallet generates a public key and a private key which it uses to sign each Transaction. The pulic key is the send-to address used by the Bitcoin network. Each wallet has the ability to send coins from your account to another account and it also has the ability to confirm Transaction (expect it's own) which it receives from the Bitcoin peer-to-peer network.
+The Wallet is how peers interact with the Bitcoin peer-to-peer network. The Wallet generates a public key and a private key which it uses to sign each Transaction. The pulic key is the send-to address used by the Bitcoin network. Each wallet has the ability to send coins from your account to another account and it also has the ability to confirm Transaction (expect it's own) which it receives from the Bitcoin peer-to-peer network.
 
 ```
     Wallet {
@@ -30,9 +30,7 @@ The Wallet is how you interact with the Bitcoin peer-to-peer network. The Wallet
     }
 ```
 
-The Wallet also implements a couple of rules.
-
-#### Transaction rules
+#### The Wallet also implements a couple of Transaction rules:
 
 * Once a Transaction has been used as an input, it cannot be used again. 
 * All inputs on a Transaction have to be completely consumed on a transaction.
@@ -51,30 +49,30 @@ If Justin wants to send 6 coins to George:
 
 ```
     Aggregate Transaction #4 {
-      header = "6 coins for George and 2 coins to Justin"
-      input[] = { Transaction #1, Transaction #2 }
-      output[] = { Transaction #5, Transaction #6 }
-      value = 0
-      signature = Justin's signature based on the Header
+      byte[]        header      "6 coins for George and 2 coins to Justin"
+      Transaction[] input       { Transaction #1, Transaction #2 }
+      Transaction[] output      { Transaction #5, Transaction #6 }
+      int           value       0
+      byte[]        signature   "Justin's signature based on the Header"
     }
 ```
 Note: The 'value' on the Aggregate Transaction (#4) is a reward for anyone who confirms the Transaction. The higher the reward, the better chance the Transaction will be processed quicker.
 
 ```
     Transaction #5 {
-      header = "2 coins to Justin"
-      input[] = { Transaction #1, Transaction #2 }
-      output[] = { }
-      value = 2
-      signature = Justin's signature based on the Header
+      byte[]        header      "2 coins to Justin"
+      Transaction[] input       { Transaction #1, Transaction #2 }
+      Transaction[] output      { }
+      int           value       2
+      byte[]        signature   "Justin's signature based on the Header"
     }
 
     Transaction #6 {
-      header = "6 coins for George"
-      input[] = { Transaction #1, Transaction #2 }
-      output[] = { }
-      value = 6
-      signature = Justin's signature based on the Header
+      byte[]        header      "6 coins for George"
+      Transaction[] input       { Transaction #1, Transaction #2 }
+      Transaction[] output      { }
+      int           value       6
+      byte[]        signature   "Justin's signature based on the Header"
     }
 ```
 
@@ -84,17 +82,38 @@ The Wallet will use it's private key to sign the Header of the Aggregate Transac
 
 Then it will send Transaction #4 to the Bitcoin network for confirmation. Each peer on the Bitcoin network will receive the Transaction and try to confirm it. To confirm a Transaction, a peer would check the Signature on the Header of the Transaction and see if it matches the public key of the sender. If the Signature matches, it'll send a confirmed Transaction to the Bitcoin network.
 
-Peers (also called Miners) will gather confirmed Transactions on the Bitcoin network into Blocks. A Block contains a number of confirmation Transactions, a nonce, previous hash, next hash, and a signature.
+The confirmed Transaction (#4) is added to a pool of confirmed Transactions. Peers (also called Miners) will gather confirmed Transactions from the pool and put them into a Block. A Block contains a number of confirmed Transactions, zeros for proof of work, a nonce , previous hash, next hash, and a signature.
+
+Miners will create an 'aggregate hash' from all the confirmed Transactions, they will then go through the process of "Proof of work". The goal of the "Proof of work" is to create a hash which begins with 'zeros' number of zeros. "Proof of work" is designed to be processor intensive add adds randomness to the time it takes to process a Block. A Miner will take the 'aggregate hash' and append a random integer (called a nonce) to it. It will then create a new hash from 'agrregate hash + nonce' and see if it solves the "Proof of work", the process will repeate until it finds a nonce which solves the "Proof of work"
+
+See the [Block Class](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/data_model/Block.java)  and [Proof of work](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/ProofOfWork.java) for reference.
+for reference.
+
+Once a Miner finds a nonce which solves the "Proof of work", it can send the Block to the Bitcoin network for confirmation. It will also create another hash (nextHash) using the 'previousHash' and the 'aggregate hash' which'll be used by the Blockchain once confirmed.
 
 ```
     Block {
-      Transaction[] transactions;
-      byte[] signature;
-      byte[] previousHash;
-      byte[] nextHash;
+      Transaction[]     transactions    { Transaction #4 }
+      int               nonce           21080;
+      int               zeros           3;
+      byte[]            signature       "Miner's signature";
+      byte[]            previousHash    "Current hash on the Blockchain";
+      byte[]            nextHash        "Next hash for the blockchain";
     }
 ```
 
-See the [Block Class](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/data_model/Block.java) for reference.
+Peers on the Bitcoin network will receive the Block and start confirming it. To confirm the Block, the peer will check the nonce, check the Block's signature and the signature of each Trasaction in the Block. It will then try and add the block to it's Blockchain.
+
+The Blockchain is a simple structure which contains a list of confirmed Blocks, a list of Transactions in chronilogical order, and the current hash.
+
+````
+    Blockchain {
+        List<Block>         blockchain;
+        List<Transactions>  transactions;
+        byte[]              currentHash;
+    }
+```
+
+
 
 Based off of http://www.michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/
