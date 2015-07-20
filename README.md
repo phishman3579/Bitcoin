@@ -4,7 +4,7 @@ An example Bitcoin implementation which can be used to help learn about Bitcoin/
 # General overview.
 
 ## Transactions
-Transactions are just a collection of input transactions and output transactions, a value, and a signature. 
+Transactions are just a collection of input transactions, output transactions, a value, and a signature. 
 
 ```
     Transaction {
@@ -18,9 +18,10 @@ Transactions are just a collection of input transactions and output transactions
 
 See the [Transaction Class](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/data_model/Transaction.java) for reference.
 
+
 ### Wallet
 
-The Wallet is how peers interact with the Bitcoin peer-to-peer network. The Wallet generates a public key and a private key which it uses to sign each Transaction. The pulic key is the send-to address used by the Bitcoin network. Each wallet has the ability to send coins from your account to another account and it also has the ability to confirm Transaction (expect it's own) which it receives from the Bitcoin peer-to-peer network.
+The Wallet is how peers interact with the Bitcoin peer-to-peer network. The Wallet generates a public key and a private key which it uses to sign each Transaction. The pulic key is the send-to address used by the Bitcoin network. Each Wallet has the ability to send coins from your account to another account and it also has the ability to confirm Transaction (expect it's own) which it receives from the Bitcoin peer-to-peer network.
 
 ```
     Wallet {
@@ -35,17 +36,19 @@ The Wallet is how peers interact with the Bitcoin peer-to-peer network. The Wall
 * Once a Transaction has been used as an input, it cannot be used again. 
 * All inputs on a Transaction have to be completely consumed on a transaction.
 
-Note: To send a Bitcoin transaction, you have to already own a Bitcoin. Getting an initial Bitcoin is usually done by trading a something for a number of Bitcoins. One caveat of, having to own a Bitcoin to make a transaction, is the first transaction. The first transaction is called the genesis transaction, it is the only transaction which does not need input transactions.
+Note: To send a Bitcoin transaction, you have to already own a Bitcoin. Getting an initial Bitcoin is usually done by trading something for a number of Bitcoins. One caveat of, having to own a Bitcoin to make a transaction, is the first transaction. The first transaction is called the genesis transaction, it is the only transaction which does not need input transactions.
 
 ### An example Transaction
 
 If Justin wants to send 6 coins to George:
 
+Ledger:
+
 |  Justin's unused Transactions  |  George's unused Transaction  |
 |  ----------------------------- | ----------------------------- | 
 | Transaction #1 : 5 Coins       |                               |
 | Transaction #2 : 3 Coins       |                               |
-| Transaction #3 : 6 Coins       |                               |
+| Transaction #3 : 7 Coins       |                               |
 
 ```
     Aggregate Transaction #4 {
@@ -78,9 +81,9 @@ Note: The 'value' on the Aggregate Transaction (#4) is a reward for anyone who c
 
 The Aggregate Transaction (#4) will consume Transaction #1 and #2 from Justin's unused Transactions. Since the total of all inputs is 8 coins which is 2 more than what Justin wants to send to George, the output will contain a Transaction which sends 2 coins back to Justin.
 
-The Wallet will use it's private key to sign the Header of the Aggregate Transactions (#4) and it will also sign each of the output Transactions (#5 & #6).
+The Wallet will use it's private key to sign the Header of the Aggregate Transactions (#4) and it will also sign each of the output Transactions (#5 & #6). It will then send Transaction #4 to the Bitcoin network for confirmation. Each peer on the Bitcoin network will receive the Transaction and try to confirm it. 
 
-Then it will send Transaction #4 to the Bitcoin network for confirmation. Each peer on the Bitcoin network will receive the Transaction and try to confirm it. To confirm a Transaction, a peer would check the Signature on the Header of the Transaction and see if it matches the public key of the sender. If the Signature matches, it'll send a confirmed Transaction to the Bitcoin network.
+To confirm a Transaction, a peer will check the Signature on the Header of the Transaction and see if it matches the public key of the sender. If the Signature matches, it'll send a confirmed Transaction to the Bitcoin network.
 
 The confirmed Transaction (#4) is added to a pool of confirmed Transactions. Peers (also called Miners) will gather confirmed Transactions from the pool and put them into a Block. A Block contains a number of confirmed Transactions, the Miner's signature, and a couple of other fields used for "Proof of work" processing.
 
@@ -97,11 +100,12 @@ The confirmed Transaction (#4) is added to a pool of confirmed Transactions. Pee
 
 See the [Block Class](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/data_model/Block.java) for reference.
 
-Miners will create an 'aggregate hash' from all the confirmed Transactions, they will then go through the process of "Proof of work". The goal of the "Proof of work" is to create a hash which begins with a random number of zeros (see the zero's field). "Proof of work" is designed to be processor intensive which adds randomness to the time it takes to process a Block. A Miner will take the 'aggregate hash' and append a random integer (called a nonce) to it. It will then create a new hash from 'agrregate hash + nonce' and see if it solves the "Proof of work", the process will repeat until it finds a nonce which satisfies the "Proof of work"
+
+Miners will create an 'aggregate hash' from all the confirmed Transactions, they will then go through the process of "Proof of work". The goal of the "Proof of work" is to create a hash which begins with a random number of zeros (see the zero's field). "Proof of work" is designed to be processor intensive which adds randomness to the time it takes to process a Block. A Miner will take the 'aggregate hash' and append a random integer (called a nonce) to it. It will then create a new hash from 'agrregate hash + nonce' and see if it satisfies the "Proof of work", this process will repeat until it finds a nonce which satisfies the "Proof of work"
 
 See the [Proof of work](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/ProofOfWork.java) for reference.
 
-Once a Miner finds a nonce which satisfies the "Proof of work", it will create a hash (see 'nextHash') using the Blockchain's current hash (see 'previousHash') and the 'aggregate hash' which will be used by the Blockchain once confirmed.
+Once a Miner finds a nonce which satisfies the "Proof of work", it will create a hash (see 'nextHash') using the Blockchain's current hash (see 'previousHash') and the 'aggregate hash' which will be used by the Blockchain once confirmed. Peers on the Bitcoin network will receive the Block and start confirming it. 
 
 ```
     Block #1 {
@@ -114,7 +118,7 @@ Once a Miner finds a nonce which satisfies the "Proof of work", it will create a
     }
 ```
 
-Peers on the Bitcoin network will receive the Block and start confirming it. To confirm the Block, the peer will check the nonce, check the Block's signature and the signature of each Trasaction in the Block. It will then try and add the block to it's Blockchain.
+To confirm the Block, the peer will check the nonce, check the Block's signature and the signature of each Trasaction in the Block. It will then try and add the block to it's Blockchain.
 
 The Blockchain is a simple structure which contains a list of confirmed Blocks, a list of Transactions in chronilogical order, a list of unused Transactions, and the current hash.
 
@@ -151,6 +155,14 @@ Updated Blockchain.
         byte[]              currentHash     "Blockchain hash #2"
     }
 ```
+
+Ledger:
+
+|  Justin's unused Transactions  |  George's unused Transaction  |
+|  ----------------------------- | ----------------------------- | 
+| Transaction #3 : 7 Coins       | Transaction #6 : 6 Coins      |
+| Transaction #5 : 2 Coins       |                               |
+|                                |                               |
 
 Based off of:
 http://www.michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/
