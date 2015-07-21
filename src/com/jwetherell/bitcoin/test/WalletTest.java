@@ -135,7 +135,7 @@ public class WalletTest {
         p2.shutdown();
     }
 
-    @Test(timeout=10000)
+    @Test//(timeout=10000)
     public void testCoinExchangers3() throws InterruptedException {
         final String n1 = "n1";
         final String n2 = "n2";

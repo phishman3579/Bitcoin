@@ -7,12 +7,14 @@ import com.jwetherell.bitcoin.common.HashUtils;
 
 public class Block {
 
+    private static final int    FROM_LENGTH             = 4;
     private static final int    BOOLEAN_LENGTH          = 2;
     private static final int    NUM_OF_ZEROS_LENGTH     = 4;
     private static final int    NONCE_LENGTH            = 8;
     private static final int    BLOCK_LENGTH            = 4;
     private static final int    LENGTH_LENGTH           = 4;
 
+    public String               from;
     public boolean              confirmed               = false;
     public int                  numberOfZeros;
     public long                 nonce;
@@ -28,6 +30,7 @@ public class Block {
     }
 
     public Block(String from, byte[] prevHash, byte[] hash, Transaction[] transactions, int blockLength) {
+        this.from = from;
         this.prev = prevHash;
         this.hash = hash;
         this.transactions = transactions;
@@ -38,7 +41,8 @@ public class Block {
         int transactionsLength = 0;
         for (Transaction t : transactions)
             transactionsLength += LENGTH_LENGTH + t.getBufferLength();
-        return  BOOLEAN_LENGTH + 
+        return  FROM_LENGTH + from.length() +
+                BOOLEAN_LENGTH + 
                 NUM_OF_ZEROS_LENGTH +
                 NONCE_LENGTH +
                 BLOCK_LENGTH +
@@ -48,6 +52,10 @@ public class Block {
     }
 
     public void toBuffer(ByteBuffer buffer) {
+        final byte[] fBytes = from.getBytes();
+        buffer.putInt(fBytes.length);
+        buffer.put(fBytes);
+        
         buffer.putChar(getBoolean(confirmed));
         buffer.putInt(numberOfZeros);
         buffer.putLong(nonce);
@@ -67,6 +75,11 @@ public class Block {
     }
 
     public void fromBuffer(ByteBuffer buffer) {
+        final int fLength = buffer.getInt();
+        final byte[] fBytes = new byte[fLength];
+        buffer.get(fBytes, 0, fLength);
+        from = new String(fBytes);
+
         confirmed = parseBoolean(buffer.getChar());
         numberOfZeros = buffer.getInt();
         nonce = buffer.getLong();
@@ -113,6 +126,8 @@ public class Block {
         if (!(o instanceof Block))
             return false;
         Block c = (Block) o;
+        if (!(c.from.equals(from)))
+            return false;
         if (confirmed != c.confirmed)
             return false;
         if (nonce != c.nonce)

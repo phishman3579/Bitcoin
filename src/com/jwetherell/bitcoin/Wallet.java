@@ -16,6 +16,7 @@ import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.jwetherell.bitcoin.common.Constants;
+import com.jwetherell.bitcoin.common.HashUtils;
 import com.jwetherell.bitcoin.common.KeyUtils;
 import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.Transaction;
@@ -60,7 +61,7 @@ public class Wallet extends Peer {
     }
 
     // Number of zeros in prefix of has to compute as the proof of work.
-    private static final int                                NUMBER_OF_ZEROS                 = 2;
+    private static final int                                NUMBER_OF_ZEROS                 = 32;
     // Number of transactions to aggregate in a Block
     private static final int                                NUMBER_OF_TRANSACTIONS_IN_BLOCK = 1;
     // Empty list
@@ -89,6 +90,7 @@ public class Wallet extends Peer {
         super(name);
         // add the initial pub key
         this.publicKeys.put(BlockChain.NO_ONE, ByteBuffer.wrap(BlockChain.NO_ONE_PUB_KEY));
+        this.publicKeys.put(myName, ByteBuffer.wrap(bPublicKey));
         // initialize the blockchain
         this.blockChain = new BlockChain(name);
     }
@@ -189,16 +191,14 @@ public class Wallet extends Peer {
         super.sendTransaction(name, transaction);
     }
 
-    private Constants.Status checkSignature(String from, byte[] signature, byte[] bytes) {
-        if (!publicKeys.containsKey(from))
+    /** make sure this message is from who it says it is **/
+    private Constants.Status checkSignature(String dataFrom, byte[] signature, byte[] bytes) {
+        if (!publicKeys.containsKey(dataFrom))
             return Constants.Status.NO_PUBLIC_KEY;
 
-        final byte[] key = publicKeys.get(from).array();
-        if (!verifyMsg(key, signature, bytes)) {
-            if (DEBUG)
-                System.err.println(myName+" Bad signature on key from '"+from+"'");
+        final byte[] key = publicKeys.get(dataFrom).array();
+        if (!verifyMsg(key, signature, bytes))
             return Constants.Status.BAD_SIGNATURE;
-        }
 
         return Constants.Status.SUCCESS;
     }
@@ -207,11 +207,11 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected Constants.Status handleTransaction(String from, Transaction transaction, byte[] signature, byte[] bytes) {
-        final Constants.Status status = checkSignature(from, signature, bytes);
+    protected Constants.Status handleTransaction(String dataFrom, Transaction transaction, byte[] signature, byte[] bytes) {
+        final Constants.Status status = checkSignature(dataFrom, signature, bytes);
         if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
-                System.err.println(myName+" handleTransaction() status="+status+"\n"+"transaction={\n"+transaction.toString()+"\n}");
+                System.err.println(myName+" handleTransaction() from '"+dataFrom+"' status="+status+"\n"+"transaction={\n"+transaction.toString()+"\n}");
             return status;
         }
 
@@ -222,11 +222,11 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected Constants.Status handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes) {
-        final Constants.Status status = checkSignature(from, signature, bytes);
+    protected Constants.Status handleTransactionAck(String dataFrom, Transaction transaction, byte[] signature, byte[] bytes) {
+        final Constants.Status status = checkSignature(dataFrom, signature, bytes);
         if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
-                System.err.println(myName+" handleTransactionAck() status="+status+"\n"+"transaction={\n"+transaction.toString()+"\n}");
+                System.err.println(myName+" handleTransactionAck() from '"+dataFrom+"' status="+status+"\n"+"transaction={\n"+transaction.toString()+"\n}");
             return status;
         }
 
@@ -267,11 +267,11 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected Constants.Status checkTransaction(String from, Block block, byte[] signature, byte[] bytes) {
-        final Constants.Status status = checkSignature(from, signature, bytes);
+    protected Constants.Status checkTransaction(String dataFrom, Block block, byte[] signature, byte[] bytes) {
+        final Constants.Status status = checkSignature(dataFrom, signature, bytes);
         if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
-                System.err.println(myName+" checkTransaction() status="+status+"\n"+"block={\n"+block.toString()+"\n}\n");
+                System.err.println(myName+" checkTransaction() from '"+dataFrom+"' status="+status+"\n"+"block={\n"+block.toString()+"\n}\n");
             return status;
         }
 
@@ -284,20 +284,20 @@ public class Wallet extends Peer {
      * synchronized to protect the blockchain from changing while processing
      */
     @Override
-    protected synchronized Constants.Status handleConfirmation(String from, Block block, byte[] signature, byte[] bytes) {
+    protected synchronized Constants.Status handleConfirmation(String dataFrom, Block block, byte[] signature, byte[] bytes) {
         // Let's see if the nonce was computed correctly
-        final boolean nonceComputedCorrectly = ProofOfWork.check(block.hash, block.nonce, block.numberOfZeros);
+        final boolean nonceComputedCorrectly = ProofOfWork.check(block.hash, (int)block.nonce, block.numberOfZeros);
         if (!nonceComputedCorrectly) {
             if (DEBUG)
-                System.err.println(myName+" Nonce was not computed correctly. block={\n"+block.toString()+"\n}");
+                System.err.println(myName+" handleConfirmation() from '"+dataFrom+"' Nonce was not computed correctly. block={\n"+block.toString()+"\n}");
             return Constants.Status.INCORRECT_NONCE;
         }
 
         // Check signature on the block
-        final Constants.Status status = checkSignature(from, signature, bytes);
+        final Constants.Status status = checkSignature(dataFrom, signature, bytes);
         if (status != Constants.Status.SUCCESS) {
             if (DEBUG)
-                System.err.println(myName+" checkTransaction() status="+status+"\n"+"block={\n"+block.toString()+"\n}\n");
+                System.err.println(myName+" handleConfirmation() from '"+dataFrom+"' status="+status+"\n"+"block={\n"+block.toString()+"\n}\n");
             return status;
         }
 
@@ -310,7 +310,7 @@ public class Wallet extends Peer {
                 final Constants.Status transactionStatus = checkSignature(transactionFrom, transactionSignature, transactionBytes);
                 if (transactionStatus != Constants.Status.SUCCESS) {
                     if (DEBUG)
-                        System.err.println(myName+" checkTransaction() status="+transactionStatus+"\n"+"transaction={\n"+trans.toString()+"\n}\n");
+                        System.err.println(myName+" handleConfirmation() from '"+dataFrom+"' status="+transactionStatus+"\n"+"transaction={\n"+trans.toString()+"\n}\n");
                     return status;
                 }
             }
@@ -323,7 +323,7 @@ public class Wallet extends Peer {
                     final Constants.Status iStatus = checkSignature(iFrom, iSignature, iBytes);
                     if (iStatus != Constants.Status.SUCCESS) {
                         if (DEBUG)
-                            System.err.println(myName+" checkTransaction() status="+iStatus+"\n"+"transaction={\n"+i.toString()+"\n}\n");
+                            System.err.println(myName+" handleConfirmation() from '"+dataFrom+"' status="+iStatus+"\n"+"transaction={\n"+i.toString()+"\n}\n");
                         return status;
                     }
                 }
@@ -336,7 +336,7 @@ public class Wallet extends Peer {
                     final Constants.Status oStatus = checkSignature(oFrom, oSignature, oBytes);
                     if (oStatus != Constants.Status.SUCCESS) {
                         if (DEBUG)
-                            System.err.println(myName+" checkTransaction() status="+oStatus+"\n"+"transaction={\n"+o.toString()+"\n}\n");
+                            System.err.println(myName+" handleConfirmation() from '"+dataFrom+"' status="+oStatus+"\n"+"transaction={\n"+o.toString()+"\n}\n");
                         return status;
                     }
                 }
@@ -344,15 +344,18 @@ public class Wallet extends Peer {
         }
 
         // Everything looks good to me, try and add to blockchain
-        return blockChain.addBlock(block);
+        return blockChain.addBlock(dataFrom, block);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected long mineHash(byte[] sha256, long numberOfZerosInPrefix) {
-        return ProofOfWork.solve(sha256, numberOfZerosInPrefix);
+    protected int mineHash(byte[] sha256, long numberOfZerosInPrefix) {
+        final int nonce = ProofOfWork.solve(sha256, numberOfZerosInPrefix);
+        if (DEBUG)
+            System.err.println(myName+" mineHash() SOLVED. nonce="+nonce+"\n"+"sha256=["+HashUtils.bytesToHex(sha256)+"]\n");
+        return nonce;
     }
 
     /**

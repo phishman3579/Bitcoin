@@ -47,7 +47,7 @@ public class BlockChain {
     private static final Transaction        GENESIS_TRANS;
     private static final Block              GENESIS_BLOCK;
     static {
-        // To start the block chain, we have an initial transaction which has no inputs and one output which
+        // To start the blockchain, we have an initial transaction which has no inputs and one output which
         // is given to the genesis entity. This is the only transaction which has no inputs.
         final Transaction[] empty = new Transaction[0];
         final Transaction[] output = new Transaction[1];
@@ -80,7 +80,7 @@ public class BlockChain {
     public BlockChain(String owner) {
         this.owner = owner;
         // transfer initial coins to genesis entity
-        this.addBlock(GENESIS_BLOCK);
+        this.addBlock(GENESIS_NAME, GENESIS_BLOCK);
     }
 
     public int getLength() {
@@ -97,7 +97,7 @@ public class BlockChain {
         return unused;
     }
 
-    public Block getNextBlock(String from, Transaction[] transactions) {
+    public Block getNextBlock(String name, Transaction[] transactions) {
         int length = 0;
         for (Transaction transaction : transactions)
             length += transaction.getBufferLength();
@@ -112,7 +112,7 @@ public class BlockChain {
         }
 
         final byte[] nextHash = getNextHash(latestHash, bytes);
-        return (new Block(from, latestHash, nextHash, transactions, this.blockChain.size()));
+        return (new Block(name, latestHash, nextHash, transactions, this.blockChain.size()));
     }
 
     public Constants.Status checkHash(Block block) {
@@ -163,7 +163,7 @@ public class BlockChain {
         return Constants.Status.SUCCESS;
     }
 
-    public Constants.Status addBlock(Block block) {
+    public Constants.Status addBlock(String dataFrom, Block block) {
         // Already processed this block? Happens if a miner is slow and isn't first to confirm the block
         if (blockChain.contains(block))
             return Constants.Status.DUPLICATE;
@@ -180,7 +180,7 @@ public class BlockChain {
                 boolean exists = unused.remove(t);
                 if (exists == false) {
                     if (DEBUG)
-                        System.err.println(owner+" Bad inputs in block. block={\n"+block.toString()+"\n}");
+                        System.err.println(owner+" Bad inputs in block from '"+dataFrom+"'. block={\n"+block.toString()+"\n}");
                     return Constants.Status.BAD_INPUTS;
                 }
             }
@@ -204,8 +204,13 @@ public class BlockChain {
             final String prev = HashUtils.bytesToHex(prevHash);
             final String next = HashUtils.bytesToHex(nextHash);
             final StringBuilder builder = new StringBuilder();
-            builder.append(owner).append(" updated hash\n");
-            builder.append("block chain length=").append(this.blockChain.size()).append("\n");
+            builder.append(owner).append(" updated hash").append(" msg_from='"+dataFrom+"'").append(" block_from='"+block.from+"'\n");
+            builder.append("blockchain length=").append(blockChain.size()).append("\n");
+            builder.append("transactions=[\n");
+            for (Transaction t : block.transactions) {
+                builder.append(t.toString()).append("\n");
+            }
+            builder.append("]\n");
             builder.append("prev=[").append(prev).append("]\n");
             builder.append("next=[").append(next).append("]\n");
             System.err.println(builder.toString());

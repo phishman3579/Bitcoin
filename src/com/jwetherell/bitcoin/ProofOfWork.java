@@ -1,10 +1,14 @@
 package com.jwetherell.bitcoin;
 
+import java.nio.ByteBuffer;
+
 import com.jwetherell.bitcoin.common.HashUtils;
 
 public class ProofOfWork {
 
-    private static final boolean DEBUG = Boolean.getBoolean("debug");
+    private static final byte getBit(int ID, int position) {
+       return (byte) ((ID >> position) & (byte)1);
+    }
 
     /** 
      * Given the sha256 hash, what number can we append to the hash which'll create a hash
@@ -17,53 +21,84 @@ public class ProofOfWork {
      * output = 21080
      * 
      **/
-    public static final long solve(byte[] sha256, long numberOfZerosInPrefix) {
-        final StringBuilder builder = new StringBuilder();
+    public static final int solve(byte[] sha256, long numberOfZerosInPrefix) {
+        final int length = sha256.length;
 
-        // Create the prefix.
-        for (int i=0; i<numberOfZerosInPrefix; i++)
-            builder.append("0");
-        final String prefix = builder.toString();
+        final ByteBuffer buffer = ByteBuffer.allocate(length+4);
+        buffer.put(sha256, 0, length);
 
-        // Solve
-        final String h = HashUtils.bytesToHex(sha256);
-        long x = 0;
-        String r = "";
-        while (x < Long.MAX_VALUE) {
-            builder.setLength(0);
-            builder.append(h).append(x);
-            final byte[] result = HashUtils.calculateSha256(builder.toString());
-            final String hex = HashUtils.bytesToHex(result);
-            r = hex;
-            // Keep looping until we calculate 'hex' which starts 'prefix'
-            if (r.startsWith(prefix))
+        int x = 0;
+        while (x < Integer.MAX_VALUE) {
+            // append x
+            buffer.putInt(length, x);
+            // calculate new hash
+            final byte[] result = HashUtils.calculateSha256(buffer.array());
+            // wrap in buffer for easier processing
+            final ByteBuffer bb = ByteBuffer.wrap(result);
+
+            boolean wrong = false;
+            boolean done = false;
+            int numOfZeros = 0;
+            for (int i=0; i<bb.limit(); i++) {
+                final byte b = bb.get(i);
+                for (int j=0; j<8; j++) {
+                    final byte a = getBit(b,(i*8)+j);
+                    if (a == 0) {
+                        numOfZeros++;
+                    } else {
+                        wrong = true;
+                        break;
+                    }
+                    if (numOfZeros == numberOfZerosInPrefix) {
+                        done = true;
+                        break;
+                    }
+                }
+                if (done || wrong)
+                    break;
+            }
+            if (done)
                 break;
             x++;
         }
-
-        if (DEBUG)
-            System.out.println("r="+r+" has "+numberOfZerosInPrefix+" number of zeros as a prefix.");
-
         return x;
     }
 
     /** Does the given nonce create a hash which starts with 'numberOfZerosInPrefix' number of zeros **/
-    public static final boolean check(byte[] sha256, long nonce, long numberOfZerosInPrefix) {
-        final StringBuilder builder = new StringBuilder();
+    public static final boolean check(byte[] sha256, int nonce, long numberOfZerosInPrefix) {
+        final int length = sha256.length;
 
-        // Create the prefix.
-        for (int i=0; i<numberOfZerosInPrefix; i++)
-            builder.append("0");
-        final String prefix = builder.toString();
+        final ByteBuffer buffer = ByteBuffer.allocate(length+4);
+        buffer.put(sha256, 0, length);
 
-        // Solve
-        final String h = HashUtils.bytesToHex(sha256);
-        final long x = nonce;
-        builder.setLength(0);
-        builder.append(h).append(x);
-        final byte[] result = HashUtils.calculateSha256(builder.toString());
-        final String hex = HashUtils.bytesToHex(result);
+        // append nonce
+        buffer.putInt(length, nonce);
+        // calculate new hash
+        final byte[] result = HashUtils.calculateSha256(buffer.array());
+        // wrap in buffer for easier processing
+        final ByteBuffer bb = ByteBuffer.wrap(result);
 
-        return hex.startsWith(prefix);
+        boolean incorrect = false;
+        boolean correct = false;
+        int numOfZeros = 0;
+        for (int i=0; i<bb.limit(); i++) {
+            final byte b = bb.get(i);
+            for (int j=0; j<8; j++) {
+                final byte a = getBit(b,(i*8)+j);
+                if (a == 0) {
+                    numOfZeros++;
+                } else {
+                    incorrect = true;
+                    break;
+                }
+                if (numOfZeros == numberOfZerosInPrefix) {
+                    correct = true;
+                    break;
+                }
+            }
+            if (correct || incorrect)
+                break;
+        }
+        return correct;
     }
 }
