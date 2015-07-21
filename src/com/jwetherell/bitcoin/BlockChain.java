@@ -42,10 +42,6 @@ public class BlockChain {
 
     protected static final boolean          DEBUG               = Boolean.getBoolean("debug");
 
-    private final List<Block>               blockChain          = new CopyOnWriteArrayList<Block>();
-    private final List<Transaction>         transactions        = new CopyOnWriteArrayList<Transaction>();
-    private final List<Transaction>         unused              = new CopyOnWriteArrayList<Transaction>();
-
     private static final byte[]             INITIAL_HASH        = new byte[0];
 
     private static final Transaction        GENESIS_TRANS;
@@ -72,6 +68,10 @@ public class BlockChain {
         GENESIS_BLOCK = new Block(NO_ONE, BlockChain.INITIAL_HASH, nextHash, trans, 0);
         GENESIS_BLOCK.confirmed = true;
     }
+
+    private final List<Block>               blockChain          = new CopyOnWriteArrayList<Block>();
+    private final List<Transaction>         transactions        = new CopyOnWriteArrayList<Transaction>();
+    private final List<Transaction>         unused              = new CopyOnWriteArrayList<Transaction>();
 
     private final String                    owner;
 
