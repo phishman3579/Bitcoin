@@ -1,9 +1,22 @@
 # Bitcoin
 An example Bitcoin implementation which can be used to help learn about Bitcoin/Blockchain. This implementations is for educational use only.
 
-# General overview.
+# Overview.
 
-## Transactions
+## Wallet
+
+The Wallet is how peers interact with the Bitcoin peer-to-peer network. The Wallet generates a public key and a private key which it uses to sign each Transaction. The pulic key is the send-to address used by the Bitcoin network. Each Wallet has the ability to send coins from your account to another account and it also has the ability to confirm Transactions (expect it's own) which it receives from the Bitcoin peer-to-peer network.
+
+```
+    Wallet {
+      sendCoin(entity, value); // Creates a new Transaction
+      handleTransaction(Transaction); // Receives a unconfirmed Transaction
+      handleConfirmation(Transaction); // Receives a confirmed Transaction and adds to blockchain
+    }
+```
+
+## Transaction
+
 Transactions are just a collection of input transactions, output transactions, a value, and a signature. 
 
 ```
@@ -18,20 +31,7 @@ Transactions are just a collection of input transactions, output transactions, a
 
 See the [Transaction Class](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/data_model/Transaction.java) for reference.
 
-
-### Wallet
-
-The Wallet is how peers interact with the Bitcoin peer-to-peer network. The Wallet generates a public key and a private key which it uses to sign each Transaction. The pulic key is the send-to address used by the Bitcoin network. Each Wallet has the ability to send coins from your account to another account and it also has the ability to confirm Transactions (expect it's own) which it receives from the Bitcoin peer-to-peer network.
-
-```
-    Wallet {
-      sendCoin(entity, value); // Creates a new Transaction
-      handleTransaction(Transaction); // Receives a unconfirmed Transaction
-      handleConfirmation(Transaction); // Receives a confirmed Transaction and adds to blockchain
-    }
-```
-
-#### The Wallet also implements a couple of Transaction rules:
+#### The Wallet also has a number of Transaction rules:
 
 * Once a Transaction has been used as an input, it cannot be used again. 
 * All inputs on a Transaction have to be completely consumed on a transaction.
@@ -91,6 +91,8 @@ To confirm a Transaction, a Peer will:
 If it passes:
 * Send the confirmed Transaction to the Bitcoin network.
 
+## Block
+
 The confirmed Transaction (#4) is added to a pool of confirmed Transactions. Peers (also called Miners) will gather confirmed Transactions from the pool and put them into a Block. A Block contains a number of confirmed Transactions, the Miner's signature, and a couple of other fields used for "Proof of work" processing.
 
 ```
@@ -105,7 +107,6 @@ The confirmed Transaction (#4) is added to a pool of confirmed Transactions. Pee
 ```
 
 See the [Block Class](https://github.com/phishman3579/Bitcoin/blob/master/src/com/jwetherell/bitcoin/data_model/Block.java) for reference.
-
 
 Miners will create a single 'block hash' from all the confirmed Transactions in the Block. They will then go through the process of "Proof of work". The goal of the "Proof of work" is to create a hash which begins with a random number of zeros (see the 'zeros' field). "Proof of work" is designed to be processor intensive which adds randomness to the time it takes to process a Block. A Miner will take the 'block hash' and append a random integer (called a 'nonce') to it. It will then create a new hash from 'block hash + nonce' and see if it satisfies the "Proof of work", this process will repeat until it finds a 'nonce' which satisfies the "Proof of work"
 
@@ -135,6 +136,8 @@ To confirm the Block, A Peer will:
 If everything passes:
 * Add the block to it's Blockchain.
 * Send the confirmed Block to the Bitcoin network
+
+## Blockchain
 
 The Blockchain is a simple structure which contains a list of confirmed Blocks, a list of Transactions in chronilogical order, a list of unused Transactions, and the current hash.
 
@@ -194,4 +197,3 @@ Ledger:
 Based off of:
 http://www.michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/
 http://www.imponderablethings.com/2013/07/how-bitcoin-works-under-hood.html
-http://www.oreilly.com/pub/e/3277
