@@ -1,5 +1,5 @@
 # Bitcoin
-An example Bitcoin implementation which can be used to help learn about Bitcoin/Blockchain. This implementations is for educational use only.
+An example Bitcoin implementation which can be used to learn about Bitcoin/Blockchain. This implementations is for educational use only.
 
 # Overview.
 
