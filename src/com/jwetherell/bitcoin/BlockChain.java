@@ -193,6 +193,7 @@ public class BlockChain {
         }
 
         // Update the hash and add the new transaction to the list
+        final byte[] prevHash = latestHash;
         final byte[] nextHash = block.hash;
         blockChain.add(block);
         for (Transaction transaction : block.transactions)
@@ -200,7 +201,7 @@ public class BlockChain {
         latestHash = nextHash;
 
         if (DEBUG) {
-            final String prev = HashUtils.bytesToHex(latestHash);
+            final String prev = HashUtils.bytesToHex(prevHash);
             final String next = HashUtils.bytesToHex(nextHash);
             final StringBuilder builder = new StringBuilder();
             builder.append(owner).append(" updated hash\n");
