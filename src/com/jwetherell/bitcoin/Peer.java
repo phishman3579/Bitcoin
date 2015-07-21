@@ -287,15 +287,16 @@ public abstract class Peer {
             return;
         }
 
-        final Block block = getNextBlock(transaction);
-        sendBlock(block, data);
+        final Block block = aggegateTransaction(transaction);
+        if (block != null) 
+            sendBlock(block, data);
     }
 
     /** What do you want to do now that you received an ACK for a sent transaction, return the KeyStatus **/
     protected abstract Constants.Status handleTransactionAck(String from, Transaction transaction, byte[] signature, byte[] bytes);
 
-    /** Create a transaction given the this block **/
-    protected abstract Block getNextBlock(Transaction trans);
+    /** Collect the transactions, either return null or a new Block **/
+    protected abstract Block aggegateTransaction(Transaction transaction);
 
     protected void sendBlock(Block block, Data data) {
         final byte[] msg = getBlockMsg(block);
@@ -320,7 +321,7 @@ public abstract class Peer {
         } else if (status == Constants.Status.BAD_HASH) {
             if (DEBUG)
                 System.out.println(myName+" handleBlock() bad hash.");
-            sendRehash(block.transaction, data);
+            sendRehash(block, data);
             return;
         } else if (status == Constants.Status.FUTURE_BLOCK) {
             if (DEBUG)
@@ -375,7 +376,7 @@ public abstract class Peer {
             } else if (status == Constants.Status.BAD_HASH) {
                 if (DEBUG)
                     System.out.println(myName+" handleConfirmation() bad hash.");
-                sendRehash(block.transaction, data);
+                sendRehash(block, data);
                 return;
             } else if (status == Constants.Status.FUTURE_BLOCK) {
                 if (DEBUG)
@@ -414,7 +415,7 @@ public abstract class Peer {
         } else if (status == Constants.Status.BAD_HASH) {
             if (DEBUG)
                 System.out.println(myName+" handleConfirmation2() bad hash.");
-            sendRehash(block.transaction, data);
+            sendRehash(block, data);
             return;
         } else if (status != Constants.Status.SUCCESS) {
             System.out.println(myName+" handleConfirmation2() error="+status);
@@ -468,18 +469,19 @@ public abstract class Peer {
         sendConfirmation(toSend, data);
     }
 
-    protected void sendRehash(Transaction transaction, Data data) {
-        final byte[] msg = getRehashMsg(transaction);
+    protected void sendRehash(Block block, Data data) {
+        final byte[] msg = getRehashMsg(block);
         final byte[] sig = signMsg(msg);
         final Data dataToSend = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), data.from, data.sourceAddr.getHostAddress(), data.sourcePort, sig, msg);
         sendTcpQueue.add(dataToSend);
     }
 
     private void handleRehash(byte[] bytes, Data data) {
-        final Transaction transaction = parseRehashMsg(bytes);
+        final Block block = parseRehashMsg(bytes);
         final String from = data.from;
-        // hash was out of sync with the block chain, rehash it.
-        handleTransactionAck(from, transaction, data);
+        // hash was out of sync with the blockchain, reprocess it.
+        for (Transaction t : block.transactions)
+            handleTransactionAck(from, t, data);
     }
 
     private void addTransactionToSend(Queued.State state, String to, Transaction transaction) {
@@ -769,10 +771,10 @@ public abstract class Peer {
         return blockNumber;
     }
 
-    public static final byte[] getRehashMsg(Transaction transaction) {
-        final byte[] msg = new byte[HEADER_LENGTH + transaction.getBufferLength()];
-        final ByteBuffer blockBuffer = ByteBuffer.allocate(transaction.getBufferLength());
-        transaction.toBuffer(blockBuffer);
+    public static final byte[] getRehashMsg(Block block) {
+        final byte[] msg = new byte[HEADER_LENGTH + block.getBufferLength()];
+        final ByteBuffer blockBuffer = ByteBuffer.allocate(block.getBufferLength());
+        block.toBuffer(blockBuffer);
         blockBuffer.flip();
 
         final ByteBuffer buffer = ByteBuffer.wrap(msg);
@@ -783,15 +785,15 @@ public abstract class Peer {
         return msg;
     }
 
-    public static final Transaction parseRehashMsg(byte[] bytes) {
+    public static final Block parseRehashMsg(byte[] bytes) {
         final ByteBuffer buffer = ByteBuffer.wrap(bytes);
         final byte [] bMsgType = new byte[HEADER_LENGTH];
         buffer.get(bMsgType);
 
-        final Transaction transaction = new Transaction();
-        transaction.fromBuffer(buffer);
+        final Block block = new Block();
+        block.fromBuffer(buffer);
 
-        return transaction;
+        return block;
     }
 
     /**

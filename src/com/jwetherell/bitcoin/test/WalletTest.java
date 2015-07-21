@@ -199,13 +199,14 @@ public class WalletTest {
         }
 
         // This block has a bad hash
-        final Transaction block = Transaction.newSignedTransaction(p1.getSignature(), n1, n2, "Please reject me!", 1, EMPTY, EMPTY);
+        final Transaction transaction = Transaction.newSignedTransaction(p1.getSignature(), n1, n2, "Please reject me!", 1, EMPTY, EMPTY);
         final byte[] prev = "This is a bad hash".getBytes();
         final byte[] hash = "This is a VERY bad hash".getBytes();
-        final Block trans = new Block(n1, prev, hash, block, 0);
+        final Transaction[] trans = new Transaction[]{ transaction };
+        final Block block = new Block(n1, prev, hash, trans, 0);
         // Dummy data object, only care about the destination host and port
         final Data data = new Data(p1.getName(), p1.getHost(), p1.getPort(), p2.getName(), p2.getHost(), p2.getPort(), "".getBytes(), "".getBytes());
-        p1.sendBlock(trans, data);
+        p1.sendBlock(block, data);
         // p1=15, p2=35 (nothing changes)
 
         while (p1.getBalance()!=15 || p2.getBalance()!=35) {

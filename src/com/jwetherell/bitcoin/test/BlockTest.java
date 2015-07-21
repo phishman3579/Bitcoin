@@ -21,9 +21,10 @@ public class BlockTest {
         final String m = "Here is a coin for you!";
 
         final Transaction trans = new Transaction(f, t, m, 10, SIGNATURE, EMPTY, EMPTY);
+        final Transaction[] transactions = new Transaction[]{ trans };
         byte[] prev = "I am a hash!".getBytes();
         byte[] hash = "I am also a hash!".getBytes();
-        final Block block = new Block(f,prev,hash,trans,1);
+        final Block block = new Block(f,prev,hash,transactions,1);
         final ByteBuffer buffer = ByteBuffer.allocate(block.getBufferLength());
         block.toBuffer(buffer);
         buffer.flip();

@@ -68,7 +68,8 @@ public class BlockChain {
         final byte[] bytes = buffer.array();
         final byte[] nextHash = BlockChain.getNextHash(BlockChain.INITIAL_HASH, bytes);
 
-        GENESIS_BLOCK = new Block(NO_ONE, BlockChain.INITIAL_HASH, nextHash, GENESIS_TRANS, 0);
+        final Transaction[] trans = new Transaction[]{ GENESIS_TRANS };
+        GENESIS_BLOCK = new Block(NO_ONE, BlockChain.INITIAL_HASH, nextHash, trans, 0);
         GENESIS_BLOCK.confirmed = true;
     }
 
@@ -96,14 +97,22 @@ public class BlockChain {
         return unused;
     }
 
-    public Block getNextBlock(String from, Transaction transaction) {
-        final ByteBuffer buffer = ByteBuffer.allocate(transaction.getBufferLength());
-        transaction.toBuffer(buffer);
-        buffer.flip();
+    public Block getNextBlock(String from, Transaction[] transactions) {
+        int length = 0;
+        for (Transaction transaction : transactions)
+            length += transaction.getBufferLength();
+        final byte[] bytes = new byte[length];
+        final ByteBuffer bb = ByteBuffer.wrap(bytes);
 
-        final byte[] bytes = buffer.array();
+        for (Transaction transaction : transactions) {
+            final ByteBuffer buffer = ByteBuffer.allocate(transaction.getBufferLength());
+            transaction.toBuffer(buffer);
+            buffer.flip();
+            bb.put(buffer.array());
+        }
+
         final byte[] nextHash = getNextHash(latestHash, bytes);
-        return (new Block(from, latestHash, nextHash, transaction, this.blockChain.size()));
+        return (new Block(from, latestHash, nextHash, transactions, this.blockChain.size()));
     }
 
     public Constants.Status checkHash(Block block) {
@@ -114,13 +123,20 @@ public class BlockChain {
             return Constants.Status.FUTURE_BLOCK;
         }
 
-        final Transaction transaction = block.transaction;
-        final ByteBuffer buffer = ByteBuffer.allocate(transaction.getBufferLength());
-        transaction.toBuffer(buffer);
-        buffer.flip();
+        int length = 0;
+        for (Transaction transaction : block.transactions)
+            length += transaction.getBufferLength();
+        final byte[] bytes = new byte[length];
+        final ByteBuffer bb = ByteBuffer.wrap(bytes);
+
+        for (Transaction transaction : block.transactions) {
+            final ByteBuffer buffer = ByteBuffer.allocate(transaction.getBufferLength());
+            transaction.toBuffer(buffer);
+            buffer.flip();
+            bb.put(buffer.array());
+        }
 
         // Calculate what I think the next has should be
-        final byte[] bytes = buffer.array();
         final byte[] nextHash = getNextHash(latestHash, bytes);
 
         // Store the previous and next hash from the block
@@ -131,7 +147,7 @@ public class BlockChain {
             // This block has a different 'next' hash then I expect, someone is out of sync
             if (DEBUG) {
                 StringBuilder builder = new StringBuilder();
-                builder.append(owner).append(" Invalid hash on transaction from '").append(block.transaction.from).append("'\n");
+                builder.append(owner).append(" Invalid hash on transaction\n");
                 builder.append("confirmed="+block.confirmed).append("\n");
                 builder.append("length=").append(this.blockChain.size()).append("\n");
                 builder.append("latest=["+HashUtils.bytesToHex(latestHash)+"]\n");
@@ -158,33 +174,36 @@ public class BlockChain {
             return status;
 
         // Get the aggregate transaction for processing
-        final Transaction transaction = block.transaction;
-
-        // Remove the inputs from the unused pool
-        for (Transaction t : transaction.inputs) {
-            boolean exists = unused.remove(t);
-            if (exists == false) {
-                if (DEBUG)
-                    System.err.println(owner+" Bad inputs in block. block={\n"+block.toString()+"\n}");
-                return Constants.Status.BAD_INPUTS;
+        for (Transaction transaction : block.transactions) {
+            // Remove the inputs from the unused pool
+            for (Transaction t : transaction.inputs) {
+                boolean exists = unused.remove(t);
+                if (exists == false) {
+                    if (DEBUG)
+                        System.err.println(owner+" Bad inputs in block. block={\n"+block.toString()+"\n}");
+                    return Constants.Status.BAD_INPUTS;
+                }
             }
         }
 
         // Add outputs to unused pool
-        for (Transaction t : transaction.outputs)
-            unused.add(t);
+        for (Transaction transaction : block.transactions) {
+            for (Transaction t : transaction.outputs)
+                unused.add(t);
+        }
 
         // Update the hash and add the new transaction to the list
         final byte[] nextHash = block.hash;
         blockChain.add(block);
-        transactions.add(transaction);
+        for (Transaction transaction : block.transactions)
+            transactions.add(transaction);
         latestHash = nextHash;
 
         if (DEBUG) {
             final String prev = HashUtils.bytesToHex(latestHash);
             final String next = HashUtils.bytesToHex(nextHash);
             final StringBuilder builder = new StringBuilder();
-            builder.append(owner).append(" updated hash from '").append(block.transaction.from).append("'\n");
+            builder.append(owner).append(" updated hash\n");
             builder.append("block chain length=").append(this.blockChain.size()).append("\n");
             builder.append("prev=[").append(prev).append("]\n");
             builder.append("next=[").append(next).append("]\n");

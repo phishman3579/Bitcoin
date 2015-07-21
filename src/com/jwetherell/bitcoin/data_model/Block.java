@@ -17,31 +17,34 @@ public class Block {
     public int                  numberOfZeros;
     public long                 nonce;
     public int                  blockLength;
-    public Transaction          transaction;
+    public Transaction[]        transactions;
     public byte[]               prev;
     public byte[]               hash;
 
     public Block() {
-        transaction = new Transaction();
+        transactions = new Transaction[0];
         prev = new byte[]{};
         hash = new byte[]{};
     }
 
-    public Block(String from, byte[] prevHash, byte[] hash, Transaction transaction, int blockLength) {
+    public Block(String from, byte[] prevHash, byte[] hash, Transaction[] transactions, int blockLength) {
         this.prev = prevHash;
         this.hash = hash;
-        this.transaction = transaction;
+        this.transactions = transactions;
         this.blockLength = blockLength;
     }
 
     public int getBufferLength() {
+        int transactionsLength = 0;
+        for (Transaction t : transactions)
+            transactionsLength += LENGTH_LENGTH + t.getBufferLength();
         return  BOOLEAN_LENGTH + 
                 NUM_OF_ZEROS_LENGTH +
                 NONCE_LENGTH +
                 BLOCK_LENGTH +
                 LENGTH_LENGTH + prev.length + 
                 LENGTH_LENGTH + hash.length + 
-                transaction.getBufferLength();
+                LENGTH_LENGTH + transactionsLength;
     }
 
     public void toBuffer(ByteBuffer buffer) {
@@ -56,7 +59,11 @@ public class Block {
         buffer.putInt(hash.length);
         buffer.put(hash);
 
-        transaction.toBuffer(buffer);
+        buffer.putInt(transactions.length);
+        for (Transaction t : transactions) {
+            buffer.putInt(t.getBufferLength());
+            t.toBuffer(buffer);
+        }
     }
 
     public void fromBuffer(ByteBuffer buffer) {
@@ -65,19 +72,29 @@ public class Block {
         nonce = buffer.getLong();
         blockLength = buffer.getInt();
 
-        {
+        { // previous hash
             final int length = buffer.getInt();
             prev = new byte[length];
             buffer.get(prev);
         }
 
-        {
+        { // next hash
             final int length = buffer.getInt();
             hash = new byte[length];
             buffer.get(hash);
         }
 
-        transaction.fromBuffer(buffer);
+        int tLength = buffer.getInt();
+        transactions =  new Transaction[tLength];
+        for (int i=0; i < tLength; i++) {
+            int length = buffer.getInt();
+            final byte[] bytes = new byte[length];
+            buffer.get(bytes);
+            final ByteBuffer bb = ByteBuffer.wrap(bytes);
+            final Transaction t = new Transaction();
+            t.fromBuffer(bb);
+            transactions[i] = t;
+        }
     }
 
     private static final char getBoolean(boolean bool) {
@@ -104,8 +121,14 @@ public class Block {
             return false;
         if (numberOfZeros != c.numberOfZeros)
             return false;
-        if (!(c.transaction.equals(this.transaction)))
+        if (c.transactions.length != this.transactions.length)
             return false;
+        { // compare transactions
+            for (int i=0; i<c.transactions.length; i++) {
+                if (!(c.transactions[i].equals(this.transactions[i])))
+                    return false;
+            }
+        }
         if (!(Arrays.equals(c.prev, prev)))
             return false;
         if (!(Arrays.equals(c.hash, hash)))
@@ -126,7 +149,11 @@ public class Block {
         builder.append("prev=[").append(HashUtils.bytesToHex(prev)).append("]\n");
         builder.append("hash=[").append(HashUtils.bytesToHex(hash)).append("]\n");
         builder.append("block={").append("\n");
-        builder.append(transaction.toString()).append("\n");
+        for (Transaction t : transactions) {
+            builder.append("transaction={").append("\n");
+            builder.append(t.toString()).append("\n");
+            builder.append("}").append("\n");
+        }
         builder.append("}");
         return builder.toString();
     }

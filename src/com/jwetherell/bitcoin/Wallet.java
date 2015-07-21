@@ -9,8 +9,10 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.jwetherell.bitcoin.common.Constants;
@@ -25,11 +27,6 @@ import com.jwetherell.bitcoin.interfaces.TransactionListener;
  * Thread-Safe (Hopefully)
  */
 public class Wallet extends Peer {
-
-    // Number of zeros in prefix of has to compute as the proof of work.
-    private static final int                                NUMBER_OF_ZEROS     = 3;
-    // Empty list
-    private static final Transaction[]                      EMPTY               = new Transaction[0];
 
     protected final KeyPairGenerator                        gen;
     protected final SecureRandom                            random;
@@ -62,10 +59,31 @@ public class Wallet extends Peer {
         }
     }
 
+    // Number of zeros in prefix of has to compute as the proof of work.
+    private static final int                                NUMBER_OF_ZEROS                 = 2;
+    // Number of transactions to aggregate in a Block
+    private static final int                                NUMBER_OF_TRANSACTIONS_IN_BLOCK = 1;
+    // Empty list
+    private static final Transaction[]                      EMPTY                           = new Transaction[0];
+    // Ranks Transactions by their value
+    private static final Comparator<Transaction>            TRANSACTION_COMPARATOR          = new Comparator<Transaction>() {
+        @Override
+        public int compare(Transaction o1, Transaction o2) {
+            // Higher value is processed quicker
+            if (o1.value > o2.value)
+                return -1;
+            if (o2.value > o1.value)
+                return 1;
+            return 0;
+        }
+    };
+
     // Keep track of everyone's name -> public key
-    private final Map<String,ByteBuffer>                    publicKeys      = new ConcurrentHashMap<String,ByteBuffer>();
+    private final Map<String,ByteBuffer>                    publicKeys                      = new ConcurrentHashMap<String,ByteBuffer>();
     // My BLockChain
     private final BlockChain                                blockChain;
+    // Ranks transactions by their value to me 
+    private final PriorityQueue<Transaction>                transactionQueue                = new PriorityQueue<Transaction>(10, TRANSACTION_COMPARATOR);
 
     public Wallet(String name) {
         super(name);
@@ -99,19 +117,6 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected Block getNextBlock(Transaction transaction) {
-        Block trans = blockChain.getNextBlock(myName, transaction);
-        // Need to be confirmed
-        trans.confirmed = false;
-        // Number of zeros in prefix of hash to compute
-        trans.numberOfZeros = NUMBER_OF_ZEROS;
-        return trans;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     protected void newPublicKey(String name, byte[] publicKey) {
         publicKeys.put(name, ByteBuffer.wrap(publicKey));
     }
@@ -129,7 +134,7 @@ public class Wallet extends Peer {
     /**
      * {@inheritDoc}
      * 
-     * synchronized to protect dec from changing while processing
+     * synchronized to protect keyfactory/dec from changing while processing
      */
     @Override
     protected synchronized boolean verifyMsg(byte[] publicKey, byte[] signature, byte[] bytes) {
@@ -228,6 +233,36 @@ public class Wallet extends Peer {
         return Constants.Status.SUCCESS;
     }
 
+    /** Create a block given the these Transactions **/
+    private Block getNextBlock(Transaction[] transactions) {
+        Block trans = blockChain.getNextBlock(myName, transactions);
+        // Need to be confirmed
+        trans.confirmed = false;
+        // Number of zeros in prefix of hash to compute
+        trans.numberOfZeros = NUMBER_OF_ZEROS;
+        return trans;
+    }
+
+    /**
+     * {@inheritDoc}
+     * 
+     * synchronized to protected queue from changing while processing
+     */
+    @Override
+    protected synchronized Block aggegateTransaction(Transaction transaction) {
+        transactionQueue.add(transaction);
+        if (transactionQueue.size() >= NUMBER_OF_TRANSACTIONS_IN_BLOCK) {
+            Transaction[] transactions = new Transaction[NUMBER_OF_TRANSACTIONS_IN_BLOCK];
+            for (int i=0; i<NUMBER_OF_TRANSACTIONS_IN_BLOCK; i++) {
+                final Transaction t = transactionQueue.poll();
+                transactions[i] = t;
+            }
+            final Block block = getNextBlock(transactions);
+            return block;
+        }
+        return null;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -266,23 +301,22 @@ public class Wallet extends Peer {
             return status;
         }
 
+        for (Transaction trans : block.transactions) {
         // Check signature on the aggregate transaction and it's inputs/outputs
-        {
-            final Transaction transaction = block.transaction;
             { // Check aggregate transaction
-                final String transactionFrom = transaction.from;
-                final byte[] transactionSignature = transaction.signature.array();
-                final byte[] transactionBytes = transaction.header.getBytes();
+                final String transactionFrom = trans.from;
+                final byte[] transactionSignature = trans.signature.array();
+                final byte[] transactionBytes = trans.header.getBytes();
                 final Constants.Status transactionStatus = checkSignature(transactionFrom, transactionSignature, transactionBytes);
                 if (transactionStatus != Constants.Status.SUCCESS) {
                     if (DEBUG)
-                        System.err.println(myName+" checkTransaction() status="+transactionStatus+"\n"+"transaction={\n"+transaction.toString()+"\n}\n");
+                        System.err.println(myName+" checkTransaction() status="+transactionStatus+"\n"+"transaction={\n"+trans.toString()+"\n}\n");
                     return status;
                 }
             }
 
             { // check signature on inputs
-                for (Transaction i : transaction.inputs) {
+                for (Transaction i : trans.inputs) {
                     final String iFrom = i.from;
                     final byte[] iSignature = i.signature.array();
                     final byte[] iBytes = i.header.getBytes();
@@ -295,7 +329,7 @@ public class Wallet extends Peer {
                 }
             }
             { // check signature on outputs
-                for (Transaction o : transaction.outputs) {
+                for (Transaction o : trans.outputs) {
                     final String oFrom = o.from;
                     final byte[] oSignature = o.signature.array();
                     final byte[] oBytes = o.header.getBytes();
