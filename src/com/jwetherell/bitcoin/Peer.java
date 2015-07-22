@@ -53,9 +53,6 @@ public abstract class Peer {
             while (data != null) {
                 final String from = data.from;
 
-                // Update peers
-                peers.put(from, data);
-
                 final byte[] bytes = data.message.array();
                 final String string = new String(bytes);
                 final String hdr = string.substring(0, HEADER_LENGTH);
@@ -93,7 +90,7 @@ public abstract class Peer {
     };
 
     // Keep track of everyone's name -> ip+port
-    private final Map<String,Data>                peers                         = new ConcurrentHashMap<String,Data>();
+    private final Map<String,Host>                peers                         = new ConcurrentHashMap<String,Host>();
 
     // Pending msgs (This happens if we don't know the ip+port OR the public key of a host
     private final Map<String,Queue<Queued>>       transactionsToSend            = new ConcurrentHashMap<String,Queue<Queued>>();
@@ -171,7 +168,7 @@ public abstract class Peer {
         return (runnableRecvTcp.isReady() && runnableSendTcp.isReady() && runnableRecvMulti.isReady() && runnableSendMulti.isReady());
     }
 
-    public abstract BlockChain getBlockChain();
+    public abstract Blockchain getBlockChain();
 
     /** Get encoded public key **/
     protected abstract byte[] getPublicKey();
@@ -210,6 +207,9 @@ public abstract class Peer {
         final String name = data.from;
         final byte[] key = parseIamMsg(bytes);
 
+        // Update peers
+        peers.put(name, new Host(data.sourceAddr.getHostAddress(), data.sourcePort));
+
         // New public key
         newPublicKey(name, key);
     }
@@ -225,7 +225,7 @@ public abstract class Peer {
 
     /** Send transaction to the peer named 'to' **/
     protected void sendTransaction(String to, Transaction transaction) {
-        final Data d = peers.get(to);
+        final Host d = peers.get(to);
         if (d == null){
             // Could not find peer, broadcast a whois
             addTransactionToSend(Queued.State.NEW, to, transaction);
@@ -235,7 +235,7 @@ public abstract class Peer {
 
         final byte[] msg = getTransactionMsg(transaction);
         final byte[] sig = signMsg(msg);
-        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), to, d.ip, d.port, sig, msg);
         if (DEBUG) {
             final String string = new String(msg);
             final String hdr = string.substring(0, HEADER_LENGTH);
@@ -274,7 +274,7 @@ public abstract class Peer {
     protected abstract Constants.Status handleTransaction(String dataFrom, Transaction transaction, byte[] signature, byte[] bytes);
 
     private void ackTransaction(String to, Transaction transaction) {
-        final Data d = peers.get(to);
+        final Host d = peers.get(to);
         if (d == null){
             // Could not find peer, broadcast a whois
             addTransactionToSend(Queued.State.ACK, to, transaction);
@@ -284,7 +284,7 @@ public abstract class Peer {
 
         final byte[] msg = getTransactionAckMsg(transaction);
         final byte[] sig = signMsg(msg);
-        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+        final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), to, d.ip, d.port, sig, msg);
         if (DEBUG) {
             final String string = new String(msg);
             final String hdr = string.substring(0, HEADER_LENGTH);
@@ -530,10 +530,10 @@ public abstract class Peer {
             final Queued q = l.poll();
             if (q == null)
                 return;
-            final Data d = peers.get(to); // Do not use the data object in the queue object
+            final Host d = peers.get(to); // Do not use the data object in the queue object
             final byte[] msg = getTransactionMsg(q.transaction);
             final byte[] sig = signMsg(msg);
-            final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), to, d.sourceAddr.getHostAddress(), d.sourcePort, sig, msg);
+            final Data data = new Data(myName, runnableRecvTcp.getHost(), runnableRecvTcp.getPort(), to, d.ip, d.port, sig, msg);
             if (DEBUG) {
                 final String string = new String(msg);
                 final String hdr = string.substring(0, HEADER_LENGTH);
@@ -600,6 +600,17 @@ public abstract class Peer {
                 return;
             if (q.state == Queued.State.FUTURE)
                 handleConfirmation(from, q.block, q.data);
+        }
+    }
+
+    private static final class Host {
+
+        private final String    ip;
+        private final int       port;
+
+        private Host(String ip, int port) {
+            this.ip = ip;
+            this.port = port;
         }
     }
 

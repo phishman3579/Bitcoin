@@ -16,7 +16,7 @@ import com.jwetherell.bitcoin.common.HashUtils;
 import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
-public class BlockChain {
+public class Blockchain {
 
     public static final String              NO_ONE              = "no one";
     public static final Signature           NO_ONE_SIGNATURE;
@@ -62,14 +62,14 @@ public class BlockChain {
         buffer.flip();
 
         final byte[] bytes = buffer.array();
-        final byte[] nextHash = BlockChain.getNextHash(BlockChain.INITIAL_HASH, bytes);
+        final byte[] nextHash = Blockchain.getNextHash(Blockchain.INITIAL_HASH, bytes);
 
         final Transaction[] trans = new Transaction[]{ GENESIS_TRANS };
-        GENESIS_BLOCK = new Block(NO_ONE, BlockChain.INITIAL_HASH, nextHash, trans, 0);
+        GENESIS_BLOCK = new Block(NO_ONE, Blockchain.INITIAL_HASH, nextHash, trans, 0);
         GENESIS_BLOCK.confirmed = true;
     }
 
-    private final List<Block>               blockChain          = new CopyOnWriteArrayList<Block>();
+    private final List<Block>               blockchain          = new CopyOnWriteArrayList<Block>();
     private final List<Transaction>         transactions        = new CopyOnWriteArrayList<Transaction>();
     private final List<Transaction>         unused              = new CopyOnWriteArrayList<Transaction>();
 
@@ -77,20 +77,20 @@ public class BlockChain {
 
     private volatile byte[]                 latestHash          = INITIAL_HASH;
 
-    public BlockChain(String owner) {
+    public Blockchain(String owner) {
         this.owner = owner;
         // transfer initial coins to genesis entity
         this.addBlock(GENESIS_NAME, GENESIS_BLOCK);
     }
 
     public int getLength() {
-        return blockChain.size();
+        return blockchain.size();
     }
 
     public Block getBlock(int blockNumber) {
-        if (blockNumber>=blockChain.size())
+        if (blockNumber>=blockchain.size())
             return null;
-        return blockChain.get(blockNumber);
+        return blockchain.get(blockNumber);
     }
 
     public List<Transaction> getUnused() {
@@ -112,14 +112,14 @@ public class BlockChain {
         }
 
         final byte[] nextHash = getNextHash(latestHash, bytes);
-        return (new Block(name, latestHash, nextHash, transactions, this.blockChain.size()));
+        return (new Block(name, latestHash, nextHash, transactions, this.blockchain.size()));
     }
 
     public Constants.Status checkHash(Block block) {
-        if (block.blockLength > this.blockChain.size()) {
+        if (block.blockLength > this.blockchain.size()) {
             // This block is in the future
             if (DEBUG)
-                System.out.println(owner+" found a future block. lengths="+this.blockChain.size()+"\n"+"block={\n"+block.toString()+"\n}");
+                System.out.println(owner+" found a future block. lengths="+this.blockchain.size()+"\n"+"block={\n"+block.toString()+"\n}");
             return Constants.Status.FUTURE_BLOCK;
         }
 
@@ -149,7 +149,7 @@ public class BlockChain {
                 StringBuilder builder = new StringBuilder();
                 builder.append(owner).append(" Invalid hash on transaction\n");
                 builder.append("confirmed="+block.confirmed).append("\n");
-                builder.append("length=").append(this.blockChain.size()).append("\n");
+                builder.append("length=").append(this.blockchain.size()).append("\n");
                 builder.append("latest=["+HashUtils.bytesToHex(latestHash)+"]\n");
                 builder.append("next=["+HashUtils.bytesToHex(nextHash)+"]\n");
                 builder.append("incomingLength=").append(block.blockLength).append("\n");
@@ -165,7 +165,7 @@ public class BlockChain {
 
     public Constants.Status addBlock(String dataFrom, Block block) {
         // Already processed this block? Happens if a miner is slow and isn't first to confirm the block
-        if (blockChain.contains(block))
+        if (blockchain.contains(block))
             return Constants.Status.DUPLICATE;
 
         // Check to see if the block's hash is what I expect
@@ -195,7 +195,7 @@ public class BlockChain {
         // Update the hash and add the new transaction to the list
         final byte[] prevHash = latestHash;
         final byte[] nextHash = block.hash;
-        blockChain.add(block);
+        blockchain.add(block);
         for (Transaction transaction : block.transactions)
             transactions.add(transaction);
         latestHash = nextHash;
@@ -205,7 +205,7 @@ public class BlockChain {
             final String next = HashUtils.bytesToHex(nextHash);
             final StringBuilder builder = new StringBuilder();
             builder.append(owner).append(" updated hash").append(" msg_from='"+dataFrom+"'").append(" block_from='"+block.from+"'\n");
-            builder.append("blockchain length=").append(blockChain.size()).append("\n");
+            builder.append("blockchain length=").append(blockchain.size()).append("\n");
             builder.append("transactions=[\n");
             for (Transaction t : block.transactions) {
                 builder.append(t.toString()).append("\n");
@@ -249,15 +249,20 @@ public class BlockChain {
      */
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof BlockChain))
+        if (!(o instanceof Blockchain))
             return false;
-        final BlockChain b = (BlockChain) o;
+        final Blockchain other = (Blockchain) o;
+        for (Block b : blockchain) {
+            if (!(other.blockchain.contains(b)))
+                return false;
+        }
         for (Transaction t : transactions) {
-            if (!(b.transactions.contains(t)))
+            if (!(other.transactions.contains(t)))
                 return false;
         }
         return true;
     }
+
     /**
      * {@inheritDoc}
      */

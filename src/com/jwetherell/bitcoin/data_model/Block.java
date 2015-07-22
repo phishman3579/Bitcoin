@@ -10,24 +10,20 @@ public class Block {
     private static final int    FROM_LENGTH             = 4;
     private static final int    BOOLEAN_LENGTH          = 2;
     private static final int    NUM_OF_ZEROS_LENGTH     = 4;
-    private static final int    NONCE_LENGTH            = 8;
+    private static final int    NONCE_LENGTH            = 4;
     private static final int    BLOCK_LENGTH            = 4;
     private static final int    LENGTH_LENGTH           = 4;
 
     public String               from;
     public boolean              confirmed               = false;
     public int                  numberOfZeros;
-    public long                 nonce;
+    public int                  nonce;
     public int                  blockLength;
     public Transaction[]        transactions;
     public byte[]               prev;
     public byte[]               hash;
 
-    public Block() {
-        transactions = new Transaction[0];
-        prev = new byte[]{};
-        hash = new byte[]{};
-    }
+    public Block() { }
 
     public Block(String from, byte[] prevHash, byte[] hash, Transaction[] transactions, int blockLength) {
         this.from = from;
@@ -58,7 +54,7 @@ public class Block {
         
         buffer.putChar(getBoolean(confirmed));
         buffer.putInt(numberOfZeros);
-        buffer.putLong(nonce);
+        buffer.putInt(nonce);
         buffer.putInt(blockLength);
 
         buffer.putInt(prev.length);
@@ -82,7 +78,7 @@ public class Block {
 
         confirmed = parseBoolean(buffer.getChar());
         numberOfZeros = buffer.getInt();
-        nonce = buffer.getLong();
+        nonce = buffer.getInt();
         blockLength = buffer.getInt();
 
         { // previous hash
@@ -116,6 +112,28 @@ public class Block {
 
     private static final boolean parseBoolean(char bool) {
         return (bool=='T'?true:false);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        int hashCode = 0;
+        hashCode += from.length();
+        if (confirmed)
+            hashCode += 1;
+        hashCode += nonce;
+        hashCode += blockLength;
+        hashCode += numberOfZeros;
+        hashCode += transactions.length;
+        for (Transaction t : transactions)
+            hashCode += t.hashCode();
+        for (byte b : prev)
+            hashCode += b;
+        for (byte b : hash)
+            hashCode += b;
+        return 31 * hashCode;
     }
 
     /**

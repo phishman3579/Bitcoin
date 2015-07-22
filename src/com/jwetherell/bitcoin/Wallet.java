@@ -20,7 +20,6 @@ import com.jwetherell.bitcoin.common.HashUtils;
 import com.jwetherell.bitcoin.common.KeyUtils;
 import com.jwetherell.bitcoin.data_model.Block;
 import com.jwetherell.bitcoin.data_model.Transaction;
-import com.jwetherell.bitcoin.interfaces.TransactionListener;
 
 /**
  * Class which handles the logic of maintaining the wallet including tracking serial numbers and public/private key encryption.
@@ -82,17 +81,17 @@ public class Wallet extends Peer {
     // Keep track of everyone's name -> public key
     private final Map<String,ByteBuffer>                    publicKeys                      = new ConcurrentHashMap<String,ByteBuffer>();
     // My BLockChain
-    private final BlockChain                                blockChain;
+    private final Blockchain                                blockchain;
     // Ranks transactions by their value to me 
     private final PriorityQueue<Transaction>                transactionQueue                = new PriorityQueue<Transaction>(10, TRANSACTION_COMPARATOR);
 
     public Wallet(String name) {
         super(name);
         // add the initial pub key
-        this.publicKeys.put(BlockChain.NO_ONE, ByteBuffer.wrap(BlockChain.NO_ONE_PUB_KEY));
+        this.publicKeys.put(Blockchain.NO_ONE, ByteBuffer.wrap(Blockchain.NO_ONE_PUB_KEY));
         this.publicKeys.put(myName, ByteBuffer.wrap(bPublicKey));
         // initialize the blockchain
-        this.blockChain = new BlockChain(name);
+        this.blockchain = new Blockchain(name);
     }
 
     /**
@@ -107,12 +106,12 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    public BlockChain getBlockChain() {
-        return blockChain;
+    public Blockchain getBlockChain() {
+        return blockchain;
     }
 
     public long getBalance() {
-        return blockChain.getBalance(myName);
+        return blockchain.getBalance(myName);
     }
 
     /**
@@ -144,11 +143,11 @@ public class Wallet extends Peer {
     }
 
     // synchronized to protect the blockchain from changing while processing
-    public synchronized void sendCoin(TransactionListener listener, String name, int value) {
+    public synchronized void sendCoin(String name, int value) {
         // Iterate through the our unused transactions to see if we have enough coins
         final List<Transaction> inputList = new ArrayList<Transaction>();
         int coins = 0;
-        for (Transaction t : this.blockChain.getUnused()) {
+        for (Transaction t : this.blockchain.getUnused()) {
             if (!(t.to.equals(myName))) 
                 continue;
             coins += t.value;
@@ -235,7 +234,7 @@ public class Wallet extends Peer {
 
     /** Create a block given the these Transactions **/
     private Block getNextBlock(Transaction[] transactions) {
-        Block trans = blockChain.getNextBlock(myName, transactions);
+        Block trans = blockchain.getNextBlock(myName, transactions);
         // Need to be confirmed
         trans.confirmed = false;
         // Number of zeros in prefix of hash to compute
@@ -275,7 +274,7 @@ public class Wallet extends Peer {
             return status;
         }
 
-        return blockChain.checkHash(block);       
+        return blockchain.checkHash(block);       
     }
 
     /**
@@ -344,7 +343,7 @@ public class Wallet extends Peer {
         }
 
         // Everything looks good to me, try and add to blockchain
-        return blockChain.addBlock(dataFrom, block);
+        return blockchain.addBlock(dataFrom, block);
     }
 
     /**
@@ -364,7 +363,7 @@ public class Wallet extends Peer {
     @Override
     public String toString() {
         final StringBuilder builder = new StringBuilder();
-        builder.append(super.toString()).append(" blockChain={").append(blockChain.toString()).append("}");
+        builder.append(super.toString()).append(" blockChain={").append(blockchain.toString()).append("}");
         return builder.toString();
     }
 }

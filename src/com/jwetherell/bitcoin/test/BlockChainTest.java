@@ -6,7 +6,7 @@ import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.jwetherell.bitcoin.BlockChain;
+import com.jwetherell.bitcoin.Blockchain;
 import com.jwetherell.bitcoin.data_model.Transaction;
 
 public class BlockChainTest {
@@ -26,7 +26,7 @@ public class BlockChainTest {
             buffer.flip();
 
             final byte[] bytes = buffer.array();
-            hash1 = BlockChain.getNextHash(hash, bytes);
+            hash1 = Blockchain.getNextHash(hash, bytes);
         }
 
         final byte[] hash2;
@@ -38,7 +38,7 @@ public class BlockChainTest {
             buffer.flip();
 
             final byte[] bytes = buffer.array();
-            hash2 = BlockChain.getNextHash(hash, bytes);
+            hash2 = Blockchain.getNextHash(hash, bytes);
         }
 
         Assert.assertTrue(Arrays.equals(hash1, hash2));

@@ -183,6 +183,26 @@ public class Transaction {
      * {@inheritDoc}
      */
     @Override
+    public int hashCode() {
+        int hashCode = 0;
+        hashCode += from.length();
+        hashCode += to.length();
+        hashCode += timestamp;
+        hashCode += header.length();
+        hashCode += value;
+        for (byte b :signature.array())
+            hashCode += b;
+        for (Transaction t : inputs)
+            hashCode += t.hashCode();
+        for (Transaction t : outputs)
+            hashCode += t.hashCode();
+        return 31 * hashCode;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean equals(Object o) {
         if (!(o instanceof Transaction))
             return false;

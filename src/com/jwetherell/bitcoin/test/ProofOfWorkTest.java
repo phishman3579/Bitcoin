@@ -10,7 +10,7 @@ public class ProofOfWorkTest {
 
     @Test
     public void test() {
-        final int numberOfZerosInPrefix = 64;
+        final int numberOfZerosInPrefix = 32;
         final byte[] sha256 = HashUtils.calculateSha256("Hello world!");
         final int nonce = ProofOfWork.solve(sha256, numberOfZerosInPrefix);
 
@@ -19,7 +19,7 @@ public class ProofOfWorkTest {
 
     @Test
     public void test2() {
-        final int numberOfZerosInPrefix = 64;
+        final int numberOfZerosInPrefix = 32;
         final byte[] sha256 = HashUtils.calculateSha256("Hello, I am a very nice hash. I work well with others and whatnot.");
         final int nonce = ProofOfWork.solve(sha256, numberOfZerosInPrefix);
 

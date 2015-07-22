@@ -74,7 +74,7 @@ public class UDP {
 
             private final ConcurrentLinkedQueue<Data>           toRecv      = new ConcurrentLinkedQueue<Data>();
             private final int                                   port;
-            private final MessageListener                              listener;
+            private final MessageListener                       listener;
 
             private volatile boolean                            isReady     = false;
 
@@ -126,17 +126,19 @@ public class UDP {
                     if (DEBUG) 
                         System.out.println("Creating server. port="+port);
                     s = UDP.createServer(port);
+                    final byte[] array = new byte[BUFFER_SIZE];
+                    final ByteBuffer bb = ByteBuffer.wrap(array);
                     isReady = true;
                     while (run) {
-                        final ByteBuffer b = ByteBuffer.allocate(BUFFER_SIZE);
-                        final boolean p = UDP.recvData(s,b.array());
+                        bb.clear();
+                        final boolean p = UDP.recvData(s,bb.array());
                         if (!p) {
                             Thread.yield();
                             continue;
                         }
 
                         final Data data = new Data();
-                        data.fromBuffer(b);
+                        data.fromBuffer(bb);
 
                         if (DEBUG) 
                             System.out.println("Server ("+getHost()+":"+getPort()+") received '"+new String(data.message.array())+"' from "+data.sourceAddr.getHostAddress()+":"+data.sourcePort);
@@ -194,14 +196,15 @@ public class UDP {
                     if (DEBUG) 
                         System.out.println("Creating client");
                     s = UDP.createClient();
+                    final byte[] buffer = new byte[BUFFER_SIZE];
+                    final ByteBuffer bb = ByteBuffer.wrap(buffer);
                     isReady = true;
                     while (run) {
                         if (DEBUG && toSend.size()>1)
                             System.out.println("Client toSend size="+toSend.size());
                         final Data d = toSend.poll();
                         if (d != null) {
-                            final byte[] buffer = new byte[BUFFER_SIZE];
-                            final ByteBuffer bb = ByteBuffer.wrap(buffer);
+                            bb.clear();
                             d.toBuffer(bb);
                             bb.flip();
 
