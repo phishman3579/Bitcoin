@@ -197,3 +197,6 @@ Ledger:
 Based off of:
 http://www.michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/
 http://www.imponderablethings.com/2013/07/how-bitcoin-works-under-hood.html
+
+Also see the original paper:
+https://bitcoin.org/bitcoin.pdf
