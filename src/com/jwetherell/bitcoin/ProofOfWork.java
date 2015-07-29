@@ -2,6 +2,7 @@ package com.jwetherell.bitcoin;
 
 import java.nio.ByteBuffer;
 
+import com.jwetherell.bitcoin.Peer.MiningTask;
 import com.jwetherell.bitcoin.common.HashUtils;
 
 public class ProofOfWork {
@@ -21,14 +22,14 @@ public class ProofOfWork {
      * output = 21080
      * 
      **/
-    public static final int solve(byte[] sha256, long numberOfZerosInPrefix) {
+    public static final int solve(MiningTask task, byte[] sha256, long numberOfZerosInPrefix) {
         final int length = sha256.length;
 
         final ByteBuffer buffer = ByteBuffer.allocate(length+4);
         buffer.put(sha256, 0, length);
 
         int x = 0;
-        while (x < Integer.MAX_VALUE) {
+        while (task.run && x < Integer.MAX_VALUE) {
             // append x
             buffer.putInt(length, x);
             // calculate new hash
@@ -61,6 +62,8 @@ public class ProofOfWork {
                 break;
             x++;
         }
+        if (!task.run)
+            return Integer.MIN_VALUE;
         return x;
     }
 

@@ -147,7 +147,7 @@ public class Blockchain {
             // This block has a different 'next' hash then I expect, someone is out of sync
             if (DEBUG) {
                 StringBuilder builder = new StringBuilder();
-                builder.append(owner).append(" Invalid hash on transaction\n");
+                builder.append(owner).append(" Invalid hash in block\n");
                 builder.append("confirmed="+block.confirmed).append("\n");
                 builder.append("length=").append(this.blockchain.size()).append("\n");
                 builder.append("latest=["+HashUtils.bytesToHex(latestHash)+"]\n");

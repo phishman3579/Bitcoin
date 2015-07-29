@@ -274,7 +274,7 @@ public class Wallet extends Peer {
             return status;
         }
 
-        return blockchain.checkHash(block);       
+        return blockchain.checkHash(block);
     }
 
     /**
@@ -350,10 +350,14 @@ public class Wallet extends Peer {
      * {@inheritDoc}
      */
     @Override
-    protected int mineHash(byte[] sha256, long numberOfZerosInPrefix) {
-        final int nonce = ProofOfWork.solve(sha256, numberOfZerosInPrefix);
-        if (DEBUG)
-            System.err.println(myName+" mineHash() SOLVED. nonce="+nonce+"\n"+"sha256=["+HashUtils.bytesToHex(sha256)+"]\n");
+    protected int mineHash(MiningTask task, byte[] sha256, long numberOfZerosInPrefix) {
+        final int nonce = ProofOfWork.solve(task, sha256, numberOfZerosInPrefix);
+        if (DEBUG) {
+            String status = "CANCELLED";
+            if (nonce >= 0)
+                status = "SOLVED";
+            System.err.println(myName+" mineHash() "+status+". nonce="+nonce+"\n"+"sha256=["+HashUtils.bytesToHex(sha256)+"]\n");
+        }
         return nonce;
     }
 

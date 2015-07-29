@@ -3,10 +3,13 @@ package com.jwetherell.bitcoin;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.jwetherell.bitcoin.common.Constants;
+import com.jwetherell.bitcoin.common.HashUtils;
 import com.jwetherell.bitcoin.data_model.Transaction;
 import com.jwetherell.bitcoin.data_model.Data;
 import com.jwetherell.bitcoin.data_model.Block;
@@ -96,6 +99,9 @@ public abstract class Peer {
     private final Map<String,Queue<Queued>>       transactionsToSend            = new ConcurrentHashMap<String,Queue<Queued>>();
     private final Map<String,Queue<Queued>>       transactionsToRecv            = new ConcurrentHashMap<String,Queue<Queued>>();
     private final Map<String,Queue<Queued>>       futureTransactionsToRecv      = new ConcurrentHashMap<String,Queue<Queued>>();
+
+    private final Map<String,TimerTask>           timerMap                      = new ConcurrentHashMap<String,TimerTask>();
+    private final Timer                           timer                         = new Timer();
 
     private final Thread                          tcpSendThread;
     private final Thread                          tcpRecvThread;
@@ -404,7 +410,14 @@ public abstract class Peer {
 
             final int length = this.getBlockChain().getLength();
             final Constants.Status status = handleConfirmation(dataFrom, block, data.signature.array(), data.message.array());
-            if (status == Constants.Status.NO_PUBLIC_KEY) {
+            if (status == Constants.Status.SUCCESS) {
+                // Someone solved the nonce, cancel async task - if we have one
+                final String hex = HashUtils.bytesToHex(block.hash);
+                final TimerTask miner = timerMap.get(hex);
+                if (miner != null)
+                    miner.cancel();
+                return;
+            } else if (status == Constants.Status.NO_PUBLIC_KEY) {
                 addBlockToRecv(Queued.State.CONFIRM, dataFrom, block, data);
                 sendWhois(dataFrom);
                 return;
@@ -447,14 +460,10 @@ public abstract class Peer {
             return;
         }
 
-        // Let's mine this sucker.
-        final int nonce = mineHash(block.hash, block.numberOfZeros);
-
-        // Hash looks good to me and I have computed a nonce, let everyone know
-        block.confirmed = true;
-        block.nonce = nonce;
-
-        sendConfirmation(block);
+        // async task
+        final String hex = HashUtils.bytesToHex(block.hash);
+        final TimerTask miningTask = new MiningTask(this,hex,block);
+        timer.schedule(miningTask, 0);
     }
 
     /** What do you want to do now that you received a block, return the HashStatus **/
@@ -464,7 +473,7 @@ public abstract class Peer {
     protected abstract Constants.Status handleConfirmation(String dataFrom, Block block, byte[] signature, byte[] bytes);
 
     /** Mine the nonce sent in the transaction **/
-    protected abstract int mineHash(byte[] sha256, long numberOfZerosInPrefix);
+    protected abstract int mineHash(MiningTask timer, byte[] sha256, long numberOfZerosInPrefix);
 
     private void sendResend(int blockNumber) {
         final byte[] msg = getResendBlockMsg(blockNumber);
@@ -639,6 +648,63 @@ public abstract class Peer {
             this.transaction = null;
             this.block = block;
             this.data = data;
+        }
+    }
+
+    public static class MiningTask extends TimerTask {
+
+        public volatile boolean run = true;
+
+        private final   Peer    peer;
+        private final   String  hex;
+        private final   Block   block;
+
+        /** unit testing constructor **/
+        public MiningTask() {
+            this.peer = null;
+            this.hex = null;
+            this.block = null;
+        }
+
+        public MiningTask(Peer peer, String hex, Block block) {
+            this.peer = peer;
+            this.hex = hex;
+            this.block = block;
+
+            TimerTask oldTask = peer.timerMap.put(hex, this);
+            if (oldTask != null)
+                oldTask.cancel();
+        }
+
+        @Override
+        public void run() {
+            peer.timerMap.remove(hex);
+
+            // Let's mine this sucker.
+            final int nonce = peer.mineHash(this, block.hash, block.numberOfZeros);
+
+            if (nonce < 0)
+                return;
+
+            // Hash looks good to me and I have computed a nonce, let everyone know
+            block.confirmed = true;
+            block.nonce = nonce;
+
+            // Make sure the block is still valid (hasn't been solved by someone else while we were processing)
+            Constants.Status status = peer.getBlockChain().checkHash(block);
+            if (status != Constants.Status.SUCCESS) {
+                System.err.println(peer.myName +" NOT sending block, hash is no longer valid.");
+                return;
+            }
+
+            peer.sendConfirmation(block);
+        }
+
+        @Override
+        public boolean cancel() {
+            peer.timerMap.remove(hex);
+            run = false;
+            return super.cancel();
         }
     }
 
