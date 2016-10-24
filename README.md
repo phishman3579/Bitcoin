@@ -5,7 +5,7 @@ An example Bitcoin implementation which can be used to learn about Bitcoin/Block
 
 ## Wallet
 
-The Wallet is how peers interact with the Bitcoin peer-to-peer network. The Wallet generates a public key and a private key which it uses to sign each Transaction. The pulic key is the send-to address used by the Bitcoin network. Each Wallet has the ability to send coins from your account to another account and it also has the ability to confirm Transactions (expect it's own) which it receives from the Bitcoin peer-to-peer network.
+The Wallet is how peers interact with the Bitcoin peer-to-peer network. The Wallet generates a public key and a private key which it uses to sign each Transaction. The pulic key is the send-to address used by the Bitcoin network. Each Wallet has the ability to send coins from your account to another account and it also has the ability to confirm Transactions (except it's own) which it receives from the Bitcoin peer-to-peer network.
 
 ```
     Wallet {
@@ -139,7 +139,7 @@ If everything passes:
 
 ## Blockchain
 
-The Blockchain is a simple structure which contains a list of confirmed Blocks, a list of Transactions in chronilogical order, a list of unused Transactions, and the current hash.
+The Blockchain is a simple structure which contains a list of confirmed Blocks, a list of Transactions in chronological order, a list of unused Transactions, and the current hash.
 
 Note: all transactions in the same block are said to have happened at the same time.
 
