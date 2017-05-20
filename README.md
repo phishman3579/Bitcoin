@@ -166,7 +166,7 @@ If everything passes:
 * All the 'output' transactions are added to the 'unused' list
 * The 'currentHash' is updated to 'nextHash' from the current Block.
 
-````
+```
     Blockchain {
         List<Block>         blockchain      { Block #0 }
         List<Transactions>  transactions    { Transaction #0 }
@@ -177,7 +177,7 @@ If everything passes:
 
 Updated Blockchain.
 
-````
+```
     Blockchain {
         List<Block>         blockchain      { Block #0, Block #1 };
         List<Transactions>  transactions    { Transaction #0, Transaction #4 }
@@ -194,9 +194,6 @@ Ledger:
 | Transaction #5 : 2 Coins       |                               |
 |                                |                               |
 
-Based off of:
-http://www.michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/
-http://www.imponderablethings.com/2013/07/how-bitcoin-works-under-hood.html
+Based off of [1](http://www.michaelnielsen.org/ddi/how-the-bitcoin-protocol-actually-works/) and [2](http://www.imponderablethings.com/2013/07/how-bitcoin-works-under-hood.html)
 
-Also see the original paper:
-https://bitcoin.org/bitcoin.pdf
+Also see the [original paper](https://bitcoin.org/bitcoin.pdf)
