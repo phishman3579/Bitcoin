@@ -143,7 +143,7 @@ The Blockchain is a simple structure which contains a list of confirmed Blocks, 
 
 Note: all transactions in the same block are said to have happened at the same time.
 
-````
+```
     Blockchain {
         List<Block>         blockchain
         List<Transactions>  transactions
