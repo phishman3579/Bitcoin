@@ -21,7 +21,7 @@ Transactions are just a collection of input transactions, output transactions, a
 
 ```
     Transaction {
-        byte[] Header;
+        byte[] header;
         Transaction[] inputs;
         Transaction[] outputs;
         long value;
